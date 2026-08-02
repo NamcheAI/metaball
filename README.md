@@ -1,145 +1,129 @@
-# Metaball Brandmark Editor
+# Metaball Generator
 
-Rekonstruierte, erweiterbare Quellfassung des Metaball-Editors von
-`metaball-editor.vercel.app`. Aus dem ausgelieferten Production-Bundle
-zurückgebaut (das Deployment enthält keine Sourcemaps) und gegen das
-Original verifiziert.
+The engine behind the NAMCHE brandmark vocabulary, plus the editor for making
+marks with it.
+
+Nodes sit on a grid and are drawn as circles; connections between them are
+drawn as capsules. The union is blurred and re-thresholded, which pulls
+neighbouring forms into one organic shape — *"vom Schachbrett zum Netzwerk"*
+expressed as a computation.
 
 ```bash
 npm install
-npm run dev
+npm run dev      # the editor
+npm test         # the engine
 ```
 
-## Verifikation gegen das Original
+## What is where
 
-Bei identischem Dokument (Preset „Loop") stimmen überein:
+| Path | What it is |
+| --- | --- |
+| `core/` | `@namche/metaball` — the engine. Dependency-free, deterministic, TypeScript. |
+| `editor/` | The visual editor. A React app; the only consumer that needs a DOM. |
+| `assets/marks/` | The canonical marks, baked to SVG + JSON. |
+| `scripts/` | `bake-assets.mjs`, `sync-design.mjs`. |
 
-| Artefakt | Original | Diese Fassung |
+The editor imports the engine — there is one implementation of the geometry,
+not two. A change to how marks are drawn shows up in the editor, in the baked
+assets and in the design system together, or not at all.
+
+## Using the engine
+
+```js
+import { generate, generateSvg, generateMaskToken } from '@namche/metaball'
+
+const { d, viewBox } = generate({ preset: 'trio' })     // path data
+const svg = generateSvg({ preset: 'r', fill: '#000' })  // standalone <svg>
+const mask = generateMaskToken({ seed: 'namche' })      // CSS mask token
+```
+
+Give it a `preset`, an explicit `nodes`/`edges` spec, or a `seed` — in that
+order of precedence. The same input always produces the same path, so baked
+assets are reproducible and diffs mean something.
+
+```js
+generate({ seed: 'namche', count: 5, extraEdges: 1 })
+generate({
+  nodes: [{ r: 1, c: 1, size: 'L' }, { r: 3, c: 3, size: 'XL' }],
+  edges: [['1-1', '3-3']],
+})
+```
+
+### The parameters that shape a mark
+
+| Param | Default | What it does |
 | --- | --- | --- |
-| Gerendertes Canvas-SVG | 4830 Zeichen, Hash `2210835909` | identisch |
-| Flatten-Export-Pfad | 4638 Zeichen, Hash `563663110` | identisch |
+| `neck` | `0.55` | Capsule thickness before blur, relative to the smaller node |
+| `blur` | `9` | Fusion width — how far forms reach for each other |
+| `contrast` | `22` | Alpha cutoff; higher = sharper waist, tighter neck |
+| `pinch` | `0` | `0` barbell tubes … `1` pinched metaball |
+| `detail` | `0.9` | Simplification tolerance, in view units |
+| `resolution` | `1` | Supersampling, 1–4. Adds contour detail, not size |
 
-Der Flatten-Pfad ist der schärfste Test: Er durchläuft Rasterung, Blur,
-Alpha-Schwellwert, Marching Squares, Douglas–Peucker und Catmull-Rom-Glättung.
-Byte-Gleichheit heißt, dass diese Kette exakt reproduziert ist.
+`pinch` thins the tubes, so blur is boosted to compensate
+(`blur · (1 + pinch · 0.65)`) and the forms still fuse.
 
-## Wie der Effekt funktioniert
+Per-edge overrides go in `edgeFactors` / `edgePulls`, keyed by the sorted
+`"a|b"` edge key — that is how a single joint gets a tighter neck than the
+rest of the mark.
 
-Der „Metaball"-Look ist kein Physik-Solver, sondern ein zweistufiger Trick:
+### Two rasterizers, one result
 
-1. **Geometrie** (`src/lib/render.ts`): Jeder Node wird zu einem Kreis, jede
-   Verbindung zu einer Kapsel (dicke Linie mit runden Enden). Der
-   Kapselradius ist `neckFactor · (1 − pinch) · min(rA, rB)`.
-2. **Goo-Filter** (`src/components/Canvas.tsx`): Die Gruppe läuft durch
-   `feGaussianBlur` + `feColorMatrix`. Die Matrix lässt RGB unangetastet und
-   spreizt nur Alpha: `alpha' = alpha · contrast − contrast/2`. Weiche
-   Blur-Ränder werden dadurch wieder hart, und zwei benachbarte Blobs
-   verschmelzen zu einer organischen Form.
+Tracing needs a blurred coverage field. There are two ways to get one, and
+`generate` picks automatically (`backend: 'auto'`):
 
-Die vier Style-Regler greifen genau hier an:
+- **canvas** — browser only, fast, and the reference these marks were designed
+  against. Used for the editor's live preview and export.
+- **pure** — signed-distance rasterization plus the SVG spec's three-box-blur
+  approximation of a Gaussian. No DOM, so it runs in Node, in CI and in
+  workers. This is what bakes the static assets.
 
-| Regler | Feld | Wirkung |
-| --- | --- | --- |
-| Neck width | `tubeFactor` | Kapseldicke *vor* dem Blur |
-| Blur | `gooStd` | `stdDeviation` — Breite der Verschmelzung |
-| Contrast | `gooThreshold` | Alpha-Cutoff — höher = schärfere Taille |
-| Pinch / merge | `inwardPull` | Blendet Kapseln aus (0 = Hantel, 1 = reiner Metaball) |
+Both feed the same marching-squares tracer, Douglas–Peucker simplification and
+Catmull–Rom smoothing, so they agree to well under a pixel. Force one with
+`backend: 'canvas' | 'pure'` when you need to compare them.
 
-`inwardPull` verdünnt die Röhren; damit die Blobs trotzdem verschmelzen,
-wird der Blur gegengerechnet: `gooStd · (1 + pinch · 0.65)`
-(`effectiveBlur` in `src/lib/geometry.ts`). Jede Verbindung kann `tubeFactor`
-und `inwardPull` lokal überschreiben (`edgeFactors` / `edgePulls`).
+## Baking assets
 
-## Export
-
-`Copy SVG` / `Export SVG` / `Export PNG` klonen das Live-SVG, entfernen die
-`.editor-only`-Overlays und ersetzen im Metaball-Modus die gefilterte Gruppe
-durch **einen einzigen `<path>`**. Denn ein SVG-Filter ist nicht überall
-verlässlich — Illustrator, Schneidplotter und Stickmaschinen brauchen echte
-Konturen. Der Weg dahin (`src/lib/flatten.ts`):
-
-Canvas rastern → `ctx.filter = blur()` → Alpha-Kanal auf
-`min(0.95, 0.5 + 0.5/contrast)` schwellen → Marching Squares → Ringe
-stitchen → Douglas–Peucker vereinfachen → geschlossene Catmull-Rom-Spline als
-kubische Béziers. `fill-rule="evenodd"` sorgt dafür, dass Löcher (z. B. im
-„R") Löcher bleiben.
-
-Die Vorschau-Overlay-Checkbox unter „Advanced export" zeigt diesen Pfad als
-gestrichelte Linie über dem gefilterten Rendering — so sieht man vor dem
-Export, wie gut die Kontur trifft.
-
-> Abweichung vom Original (behoben): Dort blieben bei `Flatten res.` > 1 die
-> Pfadkoordinaten im hochskalierten Pixelraum (0…584·res). Hier werden sie
-> auf die ViewBox zurückgerechnet — höhere Auflösung bringt nur mehr
-> Kontur-Detail, die Ausgabegröße bleibt gleich. Bei `Flatten res.` = 1 ist
-> die Ausgabe weiterhin byte-identisch zum Original.
-
-## Aufbau
-
-```
-src/
-  lib/
-    types.ts        Datenmodell (EditorDoc, Node, Edge, Theme)
-    constants.ts    Grid-Maße, Größenfaktoren, Defaults
-    geometry.ts     Zellraster, Node-Radien/Zentren, Keys, Clamps
-    render.ts       Nodes+Edges → Kreise+Kapseln
-    flatten.ts      Marching Squares + Glättung (Export-Pipeline)
-    document.ts     Defaults, Presets→Doc, localStorage, JSON-I/O
-    history.ts      Undo/Redo-Stack (50 Schritte)
-    exportImage.ts  SVG/PNG/Clipboard-Export
-    presets.ts      R, Loop, Sizes, Empty
-  components/
-    Canvas.tsx      SVG-Editor: Goo-Filter, Grid, Drag, Selektion
-    Toolbar.tsx     Alle Bedienpanels
-    Slider.tsx      Range+Zahlenfeld mit Commit-Semantik
-    ColorField.tsx  Farbwähler
-    Section.tsx     Panel-Überschrift
-  App.tsx           State, Handler, Shortcuts, Persistenz
-  styles.css        Design-System (Tokens aus theme.css des Originals)
+```bash
+npm run bake
 ```
 
-### Geometrie
+Writes `assets/marks/metaball-<id>.svg` and a matching `.json` spec for every
+canonical mark. The SVG is what consumers use; the JSON re-opens in the editor,
+so a mark is never a dead end. Commit both — an unexpected diff here is the
+review signal that a shape moved.
 
-5×5-Grid, 100 px Zellen, 114 px Raster, 14 px Rand → ViewBox 584×584.
-Nodes liegen standardmäßig nur im inneren 3×3; „Full grid" öffnet den
-äußeren Ring. Größen: S 0.30, M 0.44, L 0.52, XL 0.64 (× 100 px), optional
-durch einen freien Radius (20–70) überschreibbar. Pfeiltasten verschieben
-einen Node um ±1 px innerhalb seiner Zelle (Shift: 5 px, Limit ±40 px).
+## Feeding the design system
 
-### Undo/Redo
+The design repo consumes the built engine as plain files: no build step, no
+`node_modules`, importable by the Claude Design project and by a React wrapper
+alike.
 
-`src/lib/history.ts` hält Vergangenheit/Gegenwart/Zukunft mit 50 Schritten.
-Wichtig ist die Unterscheidung in `App.tsx`:
+```bash
+npm run build:core
+npm run sync:design                  # → ../design/generator/
+npm run sync:design -- --check       # verify, non-zero exit if stale
+```
 
-- `mutate()` — jede Änderung ist ein eigener Undo-Schritt (Node hinzufügen,
-  löschen, Preset).
-- `coalesceUpdate()` — Änderungen verschmelzen zu **einem** Schritt, bis
-  `commit()` läuft. Slider und Farbwähler nutzen das, damit ein Reglerzug
-  nicht 200 Undo-Schritte erzeugt; `onCommit` feuert beim Loslassen.
+Every synced file gets a header naming the version and source commit, so a
+stale copy is identifiable at a glance. `--check` belongs in the design repo's
+CI: it fails when someone edits the vendored copy or forgets to re-sync.
 
-### Persistenz
+The direction is one-way. This repo is the source of truth; `design/generator/`
+is a build artefact that happens to be committed.
 
-Das Dokument liegt unter `metaball-editor-document` im localStorage und wird
-bei jeder Änderung geschrieben. `sanitizeDocument()` füllt fehlende Felder
-mit Defaults, sodass ältere oder von Hand bearbeitete JSONs sauber laden.
+## Provenance
 
-## Erweitern
+The editor was reconstructed from a deployed production bundle (no sourcemaps)
+and verified against it: for an identical document, the rendered canvas SVG and
+the flatten export path matched byte for byte. That parity is why the canvas
+backend is kept — it is the reference the existing marks were drawn against.
 
-Der Code ist bewusst so geschnitten, dass die häufigsten Wünsche lokal
-bleiben:
+Two deliberate departures from the original:
 
-- **Neues Preset** → Eintrag in `src/lib/presets.ts`. Mehr braucht es nicht,
-  die Toolbar rendert die Liste selbst.
-- **Größeres Grid** → `GRID`, `PITCH`, `VIEWBOX` in `constants.ts`; `isInner`
-  in `geometry.ts` legt fest, welcher Bereich ohne „Full grid" nutzbar ist.
-- **Neuer Style-Parameter** → Feld in `EditorDoc` (`types.ts`), Default in
-  `createDocument()` und `sanitizeDocument()` (`document.ts`), Slider in
-  `Toolbar.tsx`, Auswertung in `render.ts` oder im Filter in `Canvas.tsx`.
-- **Weitere Node-Form** (Quadrat, Raute) → `render.ts` liefert Primitive,
-  `Canvas.tsx` zeichnet sie, `flatten.ts` rastert sie. Alle drei Stellen
-  müssen die Form kennen, sonst weicht der Export vom Bild ab.
-- **Andere Exportgröße** → `VIEWBOX` bestimmt die SVG-Koordinaten,
-  `pngScale` nur die Rasterauflösung.
-
-Der `/login`-PIN-Gate, der Footer und die Impressum/Datenschutz-Seiten des
-Originals sind Deployment-Beiwerk und hier nicht enthalten.
+- **Flatten resolution.** The original left contour coordinates in
+  device-pixel space at `resolution > 1`; here they are scaled back to the
+  viewBox, so higher resolutions add detail rather than size.
+- **Edge-clipped contours.** Forms touching the raster edge used to stitch
+  into open fragments; the field is now sampled through a one-pixel zero
+  border so every contour closes.

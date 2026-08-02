@@ -1,10 +1,22 @@
 import { useRef, useState } from 'react'
-import { PNG_SCALES, SIZES } from '../lib/constants'
-import { PRESETS } from '../lib/presets'
-import type { Mode, Size, Theme } from '../lib/types'
+import {
+  EDITOR_PRESET_IDS,
+  PNG_SCALES,
+  PRESETS,
+  SIZES,
+  type Mode,
+  type Preset,
+  type Size,
+  type Theme,
+} from '@namche/metaball'
 import { ColorField } from './ColorField'
 import { Section } from './Section'
 import { Slider } from './Slider'
+
+/** The engine ships more presets than the editor surfaces as buttons. */
+const EDITOR_PRESETS = EDITOR_PRESET_IDS.map((id) =>
+  PRESETS.find((preset) => preset.id === id),
+).filter((preset): preset is Preset => preset !== undefined)
 
 export interface ToolbarProps {
   mode: Mode
@@ -136,7 +148,7 @@ export function Toolbar(props: ToolbarProps) {
       <div className="toolbar-panels">
         <Section title="Presets">
           <div className="button-grid">
-            {PRESETS.map((preset) => (
+            {EDITOR_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 className="chip"

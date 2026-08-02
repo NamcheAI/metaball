@@ -63,6 +63,11 @@ export interface Preset {
   gooThreshold?: number
 }
 
+export interface Point {
+  x: number
+  y: number
+}
+
 export interface Circle {
   cx: number
   cy: number

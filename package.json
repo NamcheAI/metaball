@@ -1,24 +1,19 @@
 {
-  "name": "metaball-editor",
+  "name": "metaball-generator",
   "private": true,
   "version": "1.0.0",
+  "description": "NAMCHE metaball brandmark generator — engine and editor",
   "type": "module",
-  "description": "Metaball brandmark editor — reconstructed, extensible source",
+  "workspaces": ["core", "editor"],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit"
-  },
-  "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "build": "npm run build -w @namche/metaball && npm run build -w metaball-editor",
+    "build:core": "npm run build -w @namche/metaball",
+    "dev": "npm run dev -w metaball-editor",
+    "test": "npm run test -w @namche/metaball",
+    "bake": "node scripts/bake-assets.mjs",
+    "sync:design": "node scripts/sync-design.mjs"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "typescript": "^5.7.2"
   }
 }

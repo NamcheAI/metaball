@@ -1,4 +1,4 @@
-import type { Size, Theme } from './types'
+import type { Size, Theme } from './types.js'
 
 // --- Canvas geometry ---------------------------------------------------------
 // A 5×5 grid of 100px cells with 14px margins and gaps (114px pitch), so the
@@ -32,9 +32,6 @@ export const DEFAULT_TUBE_FACTOR = 0.55
 export const PULL_BLUR_BOOST = 0.65
 export const DEFAULT_FLATTEN_EPSILON = 0.9
 export const DEFAULT_FLATTEN_RESOLUTION = 1
+export const DEFAULT_GOO_STD = 9
+export const DEFAULT_GOO_THRESHOLD = 22
 export const PNG_SCALES = [1, 2, 4, 8]
-
-// --- App plumbing ------------------------------------------------------------
-export const HISTORY_LIMIT = 50
-export const STORAGE_KEY = 'metaball-editor-document'
-export const EXPORT_PREVIEW_DEBOUNCE = 180

@@ -6,7 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactElement,
 } from 'react'
-import { CELL, GRID, SIZE_FACTORS, VIEWBOX } from '../lib/constants'
+import { CELL, GRID, SIZE_FACTORS, VIEWBOX } from '@namche/metaball'
 import {
   cellCenter,
   cellRect,
@@ -17,9 +17,9 @@ import {
   nodeCenter,
   nodeKey,
   nodeRadius,
-} from '../lib/geometry'
-import { buildRenderData, capsuleRadius } from '../lib/render'
-import type { Edge, Mode, Node, Theme } from '../lib/types'
+} from '@namche/metaball'
+import { buildRenderData, capsuleRadius } from '@namche/metaball'
+import type { Edge, Mode, Node, Theme } from '@namche/metaball'
 
 const HIGHLIGHT = '#111'
 const DRAG_THRESHOLD = 5

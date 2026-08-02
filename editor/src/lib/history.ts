@@ -1,6 +1,6 @@
-import { HISTORY_LIMIT } from './constants'
+import type { EditorDoc } from '@namche/metaball'
+import { HISTORY_LIMIT } from './appConstants'
 import { cloneDocument } from './document'
-import type { EditorDoc } from './types'
 
 export interface History {
   past: EditorDoc[]

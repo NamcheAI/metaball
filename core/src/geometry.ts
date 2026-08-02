@@ -7,8 +7,8 @@ import {
   RADIUS_MAX,
   RADIUS_MIN,
   SIZE_FACTORS,
-} from './constants'
-import type { Node, Size } from './types'
+} from './constants.js'
+import type { Node, Size } from './types.js'
 
 // --- clamps ------------------------------------------------------------------
 export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))

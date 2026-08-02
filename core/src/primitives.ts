@@ -1,5 +1,5 @@
-import { clamp01, edgeKey, nodeCenter, nodeKey, nodeRadius } from './geometry'
-import type { Capsule, Circle, Edge, Node, RenderData } from './types'
+import { clamp01, edgeKey, nodeCenter, nodeKey, nodeRadius } from './geometry.js'
+import type { Capsule, Circle, Edge, Node, RenderData } from './types.js'
 
 /** Per-edge value with fallback to a global default. */
 const edgeValue = (

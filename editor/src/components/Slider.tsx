@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { clamp } from '../lib/geometry'
+import { clamp } from '@namche/metaball'
 
 interface SliderProps {
   label: string

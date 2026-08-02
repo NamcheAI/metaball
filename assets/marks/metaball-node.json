@@ -1,0 +1,12 @@
+{
+  "preset": "node",
+  "nodes": [
+    {
+      "r": 2,
+      "c": 2,
+      "size": "XL"
+    }
+  ],
+  "edges": [],
+  "version": 1
+}

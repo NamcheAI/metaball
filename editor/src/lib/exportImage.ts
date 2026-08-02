@@ -1,5 +1,4 @@
-import { VIEWBOX } from './constants'
-import { flattenToPath, type FlattenInput } from './flatten'
+import { generate, VIEWBOX, type GenerateParams } from '@namche/metaball'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -9,7 +8,8 @@ export interface ExportOptions {
 }
 
 /** A flatten request plus the ink color to fill the resulting path with. */
-export interface FlattenExport extends FlattenInput {
+export interface FlattenExport {
+  params: GenerateParams
   ink: string
 }
 
@@ -40,11 +40,15 @@ export function buildExportSvg(
 
   const filtered = clone.querySelector('g[filter]')
   if (filtered) {
-    const d = flatten ? flattenToPath(flatten) : ''
-    if (flatten && (d || (!flatten.circles.length && !flatten.capsules.length))) {
+    const result = flatten ? generate(flatten.params) : null
+    const isEmpty =
+      result != null &&
+      !result.primitives.circles.length &&
+      !result.primitives.capsules.length
+    if (result && (result.d || isEmpty)) {
       const path = document.createElementNS(SVG_NS, 'path')
-      path.setAttribute('d', d)
-      path.setAttribute('fill', flatten.ink)
+      path.setAttribute('d', result.d)
+      path.setAttribute('fill', flatten!.ink)
       path.setAttribute('fill-rule', 'evenodd')
       filtered.replaceWith(path)
     } else {

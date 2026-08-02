@@ -5,13 +5,17 @@ import {
   DEFAULT_TUBE_FACTOR,
   GRID,
   OFFSET_LIMIT,
+  PRESETS,
   RADIUS_MAX,
   RADIUS_MIN,
   SIZES,
-  STORAGE_KEY,
-} from './constants'
-import { PRESETS } from './presets'
-import type { EditorDoc, Edge, Node, Preset, Size } from './types'
+  type EditorDoc,
+  type Edge,
+  type Node,
+  type Preset,
+  type Size,
+} from '@namche/metaball'
+import { STORAGE_KEY } from './appConstants'
 
 /** A fresh document with all the style defaults. */
 export function createDocument(nodes: Node[] = [], edges: Edge[] = []): EditorDoc {

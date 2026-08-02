@@ -1,10 +1,4 @@
-import { VIEWBOX } from './constants'
-import type { RenderData } from './types'
-
-interface Point {
-  x: number
-  y: number
-}
+import type { Point } from './types.js'
 
 interface Segment {
   a: Point
@@ -19,9 +13,9 @@ const pointKey = (p: Point) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`
  * Marching squares over a scalar field. `sample(x, y)` returns the field value
  * at integer grid coordinates; cells crossing `threshold` emit contour
  * segments, which are then stitched into closed rings. Cases 5 and 10 (the
- * ambiguous saddles) are split into two segments, matching the source.
+ * ambiguous saddles) are split into two segments.
  */
-function marchingSquares(
+export function marchingSquares(
   sample: (x: number, y: number) => number,
   w: number,
   h: number,
@@ -151,7 +145,7 @@ function perpDistance(p: Point, a: Point, b: Point): number {
 }
 
 /** Douglas–Peucker polyline simplification. */
-function douglasPeucker(points: Point[], epsilon: number): Point[] {
+export function simplify(points: Point[], epsilon: number): Point[] {
   if (points.length < 3) return points.slice()
   let maxDist = 0
   let idx = 0
@@ -165,15 +159,15 @@ function douglasPeucker(points: Point[], epsilon: number): Point[] {
     }
   }
   if (maxDist > epsilon) {
-    const left = douglasPeucker(points.slice(0, idx + 1), epsilon)
-    const right = douglasPeucker(points.slice(idx), epsilon)
+    const left = simplify(points.slice(0, idx + 1), epsilon)
+    const right = simplify(points.slice(idx), epsilon)
     return left.slice(0, -1).concat(right)
   }
   return [first, last]
 }
 
 /** Drop the duplicate closing point, rotate to a stable start, then simplify. */
-function normalizeRing(ring: Point[], epsilon: number): Point[] {
+export function normalizeRing(ring: Point[], epsilon: number): Point[] {
   let pts = ring
   if (pts.length > 1 && pointKey(pts[0]) === pointKey(pts[pts.length - 1])) {
     pts = pts.slice(0, -1)
@@ -186,14 +180,15 @@ function normalizeRing(ring: Point[], epsilon: number): Point[] {
       start = i
     }
   }
-  return douglasPeucker(pts.slice(start).concat(pts.slice(0, start)), epsilon)
+  return simplify(pts.slice(start).concat(pts.slice(0, start)), epsilon)
 }
 
-/** Closed Catmull–Rom spline expressed as cubic Bézier segments. */
-function ringToPath(points: Point[]): string {
+/** Closed Catmull–Rom spline expressed as cubic Béziers. */
+export function ringToPath(points: Point[], precision = 2): string {
   const n = points.length
   if (n < 3) return ''
-  let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)} `
+  const f = (v: number) => v.toFixed(precision)
+  let d = `M ${f(points[0].x)} ${f(points[0].y)} `
   for (let i = 0; i < n; i++) {
     const p0 = points[(i - 1 + n) % n]
     const p1 = points[i]
@@ -203,95 +198,46 @@ function ringToPath(points: Point[]): string {
     const c1y = p1.y + (p2.y - p0.y) / 6
     const c2x = p2.x - (p3.x - p1.x) / 6
     const c2y = p2.y - (p3.y - p1.y) / 6
-    d += `C ${c1x.toFixed(2)} ${c1y.toFixed(2)} ${c2x.toFixed(2)} ${c2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} `
+    d += `C ${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2.x)} ${f(p2.y)} `
   }
   return d + 'Z '
 }
 
-export interface FlattenInput extends RenderData {
-  gooStd: number
-  gooThreshold: number
-  epsilon?: number
-  resolution?: number
-}
-
 /**
- * "Flatten" the goo effect into a single filled SVG path: rasterize the
- * circles + capsules, blur, threshold the alpha channel, then trace the
- * resulting contour(s) with marching squares and smooth them. Contours are
- * traced in device-pixel space (VIEWBOX · resolution) and scaled back to
- * VIEWBOX coordinates, so higher resolutions only add tracing detail.
+ * Trace an alpha field into smoothed SVG path data.
+ *
+ * The field is sampled through a one-pixel zero border so forms clipped at
+ * the raster edge still close into proper rings, and coordinates are scaled
+ * back from device pixels into view units.
  */
-export function flattenToPath(input: FlattenInput): string {
-  if (!input.circles.length && !input.capsules.length) return ''
+export function traceField(
+  read: (x: number, y: number) => number,
+  rasterSize: number,
+  options: { threshold: number; scale: number; epsilon: number; precision?: number },
+): string {
+  const { threshold, scale, epsilon, precision = 2 } = options
 
-  const t = input.resolution ?? 1
-  const epsilon = input.epsilon ?? 0.9
-  const size = Math.ceil(VIEWBOX * t)
-
-  const shape = document.createElement('canvas')
-  shape.width = size
-  shape.height = size
-  const sctx = shape.getContext('2d')
-  if (!sctx) return ''
-  sctx.fillStyle = '#000'
-  sctx.strokeStyle = '#000'
-  sctx.lineCap = 'round'
-  sctx.lineJoin = 'round'
-  if (t !== 1) sctx.scale(t, t)
-  for (const c of input.circles) {
-    sctx.beginPath()
-    sctx.arc(c.cx, c.cy, c.r, 0, Math.PI * 2)
-    sctx.fill()
-  }
-  for (const cap of input.capsules) {
-    sctx.lineWidth = cap.r * 2
-    sctx.beginPath()
-    sctx.moveTo(cap.x1, cap.y1)
-    sctx.lineTo(cap.x2, cap.y2)
-    sctx.stroke()
-  }
-
-  const blurred = document.createElement('canvas')
-  blurred.width = size
-  blurred.height = size
-  const bctx = blurred.getContext('2d')
-  if (!bctx) return ''
-  bctx.filter = `blur(${input.gooStd * t}px)`
-  if (bctx.filter === 'none') {
-    // Engine without canvas filter support (e.g. older Safari): tracing the
-    // un-blurred shapes would silently produce a barbell instead of a
-    // metaball, so bail out and let the caller fall back to raw geometry.
-    console.warn('metaball flatten: canvas 2d filters unsupported, skipping flatten')
-    return ''
-  }
-  bctx.drawImage(shape, 0, 0)
-
-  const data = bctx.getImageData(0, 0, size, size).data
-  const threshold = Math.min(0.95, 0.5 + 0.5 / input.gooThreshold)
-  // Sample through a 1px zero border so shapes clipped at the raster edge
-  // still produce closed contours (open chains would otherwise be stitched
-  // into arbitrary fragments).
-  const padded = size + 2
+  const padded = rasterSize + 2
   const rings = marchingSquares(
     (x, y) => {
       const px = x - 1
       const py = y - 1
-      if (px < 0 || py < 0 || px >= size || py >= size) return 0
-      return data[(py * size + px) * 4 + 3] / 255
+      if (px < 0 || py < 0 || px >= rasterSize || py >= rasterSize) return 0
+      return read(px, py)
     },
     padded,
     padded,
     threshold,
   )
 
-  let path = ''
+  let d = ''
   for (const ring of rings) {
-    // Undo the border offset and scale from device-pixel space back to
-    // VIEWBOX coordinates, then simplify with epsilon in those final units.
-    const scaled = ring.map((p) => ({ x: (p.x - 1) / t, y: (p.y - 1) / t }))
+    const scaled = ring.map((p) => ({ x: (p.x - 1) / scale, y: (p.y - 1) / scale }))
     const simplified = normalizeRing(scaled, epsilon)
-    if (simplified.length >= 3) path += ringToPath(simplified)
+    if (simplified.length >= 3) d += ringToPath(simplified, precision)
   }
-  return path
+  return d
 }
+
+/** Alpha cutoff a given contrast value corresponds to. */
+export const thresholdFor = (contrast: number) => Math.min(0.95, 0.5 + 0.5 / contrast)

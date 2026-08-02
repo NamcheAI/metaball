@@ -2,11 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Toolbar } from './components/Toolbar'
 import {
-  EXPORT_PREVIEW_DEBOUNCE,
-  KEY_TO_SIZE,
+  clampOffset,
+  clampRadius,
+  edgeKey,
+  generate,
+  nodeKey,
+  nodeRadius,
+  parseKey,
+  PRESETS,
   RADIUS_MAX,
   RADIUS_MIN,
-} from './lib/constants'
+  type EditorDoc,
+  type Size,
+  type Theme,
+} from '@namche/metaball'
+import { EXPORT_PREVIEW_DEBOUNCE, KEY_TO_SIZE } from './lib/appConstants'
 import {
   cloneDocument,
   documentFromPreset,
@@ -19,15 +29,6 @@ import {
   saveDocument,
 } from './lib/document'
 import {
-  clampOffset,
-  clampRadius,
-  edgeKey,
-  effectiveBlur,
-  nodeKey,
-  nodeRadius,
-  parseKey,
-} from './lib/geometry'
-import {
   canRedo,
   canUndo,
   initHistory,
@@ -36,16 +37,21 @@ import {
   replacePresent,
   undo,
 } from './lib/history'
-import { flattenToPath } from './lib/flatten'
-import { PRESETS } from './lib/presets'
-import { buildRenderData } from './lib/render'
-import {
-  copySvg,
-  exportPng,
-  exportSvg,
-  type FlattenExport,
-} from './lib/exportImage'
-import type { EditorDoc, Size, Theme } from './lib/types'
+import { copySvg, exportPng, exportSvg, type FlattenExport } from './lib/exportImage'
+
+/** Map an editor document onto the engine's parameter names. */
+const generateParams = (doc: EditorDoc) => ({
+  nodes: doc.nodes,
+  edges: doc.edges,
+  edgeFactors: doc.edgeFactors,
+  edgePulls: doc.edgePulls,
+  neck: doc.tubeFactor,
+  blur: doc.gooStd,
+  contrast: doc.gooThreshold,
+  pinch: doc.inwardPull,
+  detail: doc.flattenEpsilon,
+  resolution: doc.flattenResolution,
+})
 
 export function App() {
   const [history, setHistory] = useState(() => initHistory(initialDocument()))
@@ -131,23 +137,8 @@ export function App() {
       return
     }
     const timer = window.setTimeout(() => {
-      const { circles, capsules } = buildRenderData(
-        doc.nodes,
-        doc.edges,
-        doc.tubeFactor,
-        doc.edgeFactors,
-        doc.inwardPull,
-        doc.edgePulls,
-      )
-      const path = flattenToPath({
-        circles,
-        capsules,
-        gooStd: effectiveBlur(doc.gooStd, doc.inwardPull),
-        gooThreshold: doc.gooThreshold,
-        epsilon: doc.flattenEpsilon,
-        resolution: doc.flattenResolution,
-      })
-      setExportPreviewPath(path || null)
+      const { d } = generate(generateParams(doc))
+      setExportPreviewPath(d || null)
     }, EXPORT_PREVIEW_DEBOUNCE)
     return () => window.clearTimeout(timer)
   }, [
@@ -380,23 +371,7 @@ export function App() {
   // --- export -----------------------------------------------------------------
   const flattenExport = (): FlattenExport | null => {
     if (doc.mode !== 'metaball') return null
-    const { circles, capsules } = buildRenderData(
-      doc.nodes,
-      doc.edges,
-      doc.tubeFactor,
-      doc.edgeFactors,
-      doc.inwardPull,
-      doc.edgePulls,
-    )
-    return {
-      circles,
-      capsules,
-      gooStd: effectiveBlur(doc.gooStd, doc.inwardPull),
-      gooThreshold: doc.gooThreshold,
-      epsilon: doc.flattenEpsilon,
-      resolution: doc.flattenResolution,
-      ink: doc.theme.ink,
-    }
+    return { params: generateParams(doc), ink: doc.theme.ink }
   }
   const handleExportSvg = () => {
     if (svgRef.current) exportSvg(svgRef.current, { markOnly }, flattenExport())
