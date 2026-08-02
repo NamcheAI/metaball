@@ -11,7 +11,8 @@
     "dev": "npm run dev -w metaball-editor",
     "test": "npm run test -w @namche/metaball",
     "bake": "node scripts/bake-assets.mjs",
-    "sync:design": "node scripts/sync-design.mjs"
+    "sync:design": "node scripts/sync-design.mjs",
+    "sync:marks": "node scripts/sync-marks.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

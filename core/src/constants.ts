@@ -21,10 +21,19 @@ export const RADIUS_MAX = 70
 export const OFFSET_LIMIT = 40
 
 // --- Style defaults ----------------------------------------------------------
+// The NAMCHE raster palette (tokens/colors.css in the design repo). The naming
+// lines up exactly: raster-pink is "the surrounding field" — which is what the
+// outer ring of cells is — and raster-cyan is "the X module", the inner 3×3
+// where nodes live. So previews are brand-correct without anyone setting them.
+// These tint the editor's grid only; they never reach an exported mark.
 export const DEFAULT_THEME: Theme = {
-  pink: '#F5A3FF',
-  blue: '#87DCF9',
+  /** --namche-raster-pink — the surrounding field (outer cells) */
+  pink: '#FBAAFF',
+  /** --namche-raster-cyan — the X module (inner 3×3) */
+  blue: '#8BE0FF',
+  /** --namche-black — the mark itself */
   ink: '#000000',
+  /** --namche-white */
   bg: '#FFFFFF',
 }
 export const DEFAULT_TUBE_FACTOR = 0.55

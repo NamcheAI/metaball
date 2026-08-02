@@ -101,16 +101,22 @@ alike.
 
 ```bash
 npm run build:core
-npm run sync:design                  # → ../design/generator/
+npm run sync:design                  # engine → ../design/generator/
+npm run sync:marks                   # marks  → ../design/assets/shapes/generated/
 npm run sync:design -- --check       # verify, non-zero exit if stale
+npm run sync:marks -- --check
 ```
 
-Every synced file gets a header naming the version and source commit, so a
-stale copy is identifiable at a glance. `--check` belongs in the design repo's
-CI: it fails when someone edits the vendored copy or forgets to re-sync.
+Every synced engine file gets a header naming the version and source commit,
+plus a `.sync-manifest.json` of SHA-256 hashes, so the design repo can verify
+its copy without needing access to this one.
 
-The direction is one-way. This repo is the source of truth; `design/generator/`
-is a build artefact that happens to be committed.
+The marks land in `assets/shapes/generated/`, kept apart from the
+Figma-exported vectors in `assets/shapes/` — those stay canonical, and a
+generated form is a new form rather than a replacement for a drawn one.
+
+The direction is one-way. This repo is the source of truth; both destinations
+are build artefacts that happen to be committed.
 
 ## Provenance
 
