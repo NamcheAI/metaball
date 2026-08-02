@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { clamp } from '../lib/geometry'
 
 interface SliderProps {
@@ -12,6 +13,18 @@ interface SliderProps {
   disabled?: boolean
 }
 
+/** Keys that change a range input's value and should close the undo group. */
+const RANGE_ADJUST_KEYS = [
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+]
+
 export function Slider({
   label,
   value,
@@ -23,6 +36,20 @@ export function Slider({
   disabled = false,
 }: SliderProps) {
   const decimals = step < 1 ? 2 : 0
+  // The number field edits a local draft so partially typed values ("4" on
+  // the way to "45") aren't clamped mid-keystroke; the clamped value is
+  // applied on blur or Enter.
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const applyDraft = () => {
+    if (draft !== null) {
+      const next = Number(draft)
+      if (draft.trim() !== '' && !Number.isNaN(next)) onChange(clamp(next, min, max))
+      setDraft(null)
+    }
+    onCommit?.()
+  }
+
   return (
     <div className="slider-row">
       <span>{label}</span>
@@ -36,8 +63,9 @@ export function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         onPointerUp={onCommit}
         onPointerCancel={onCommit}
+        onBlur={onCommit}
         onKeyUp={(e) => {
-          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) onCommit?.()
+          if (RANGE_ADJUST_KEYS.includes(e.key)) onCommit?.()
         }}
       />
       <input
@@ -46,13 +74,13 @@ export function Slider({
         min={min}
         max={max}
         step={step}
-        value={Number(value.toFixed(decimals))}
+        value={draft ?? Number(value.toFixed(decimals))}
         disabled={disabled}
-        onChange={(e) => {
-          const next = Number(e.target.value)
-          if (!Number.isNaN(next)) onChange(clamp(next, min, max))
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={applyDraft}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') applyDraft()
         }}
-        onBlur={onCommit}
       />
     </div>
   )

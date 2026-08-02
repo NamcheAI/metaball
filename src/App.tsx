@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
-import { Footer } from './components/Footer'
 import { Toolbar } from './components/Toolbar'
 import {
   EXPORT_PREVIEW_DEBOUNCE,
@@ -60,47 +59,56 @@ export function App() {
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const skipPersist = useRef(false)
-  const coalescing = useRef(false)
+  /** Identity of the control currently coalescing into one undo step, or
+   *  null when the next change should start a fresh step. Per-control (not a
+   *  boolean) so an uncommitted keyboard tweak on one slider can't swallow
+   *  the undo step of the next slider drag. */
+  const coalescing = useRef<string | null>(null)
 
   const doc = history.present
 
   // --- history primitives ----------------------------------------------------
   const commit = useCallback(() => {
-    coalescing.current = false
+    coalescing.current = null
   }, [])
 
   /** Replace the whole document as one undo step (presets, import). */
   const pushDoc = useCallback((next: EditorDoc) => {
-    coalescing.current = false
+    coalescing.current = null
     setHistory((h) => pushHistory(h, next))
   }, [])
 
   /** Apply a change as its own discrete undo step. */
   const mutate = useCallback((fn: (doc: EditorDoc) => EditorDoc) => {
-    coalescing.current = false
+    coalescing.current = null
     setHistory((h) => pushHistory(h, fn(cloneDocument(h.present))))
   }, [])
 
-  /** Apply a change that coalesces into the current step until commit()
-   *  (used by sliders/color drags so one drag == one undo). */
-  const coalesceUpdate = useCallback((fn: (doc: EditorDoc) => EditorDoc) => {
+  /** Apply a change that coalesces into the current step while the same
+   *  control keeps changing, until commit() (so one slider drag == one
+   *  undo). The ref is read and written outside the updater — inside it,
+   *  StrictMode's double-invoke would flip it on the discarded first run. */
+  const coalesceUpdate = useCallback((group: string, fn: (doc: EditorDoc) => EditorDoc) => {
+    const continues = coalescing.current === group
+    coalescing.current = group
     setHistory((h) => {
       const next = fn(cloneDocument(h.present))
-      if (coalescing.current) return replacePresent(h, next)
-      coalescing.current = true
-      return pushHistory(h, next)
+      return continues ? replacePresent(h, next) : pushHistory(h, next)
     })
   }, [])
 
-  // --- persistence ------------------------------------------------------------
+  // --- persistence (debounced; flushed on unload) -----------------------------
+  const latestDoc = useRef(doc)
   useEffect(() => {
-    if (skipPersist.current) {
-      skipPersist.current = false
-      return
-    }
-    saveDocument(doc)
+    latestDoc.current = doc
+    const timer = window.setTimeout(() => saveDocument(doc), 300)
+    return () => window.clearTimeout(timer)
   }, [doc])
+  useEffect(() => {
+    const flush = () => saveDocument(latestDoc.current)
+    window.addEventListener('beforeunload', flush)
+    return () => window.removeEventListener('beforeunload', flush)
+  }, [])
 
   // Drop selections that point at nodes/edges that no longer exist.
   useEffect(() => {
@@ -115,6 +123,8 @@ export function App() {
   }, [doc.nodes, doc.edges])
 
   // --- debounced flatten preview ---------------------------------------------
+  // Depends on the individual fields the flatten actually reads (not the
+  // whole doc), so e.g. dragging a theme color doesn't re-trace contours.
   useEffect(() => {
     if (!showExportPreview || doc.mode !== 'metaball') {
       setExportPreviewPath(null)
@@ -140,7 +150,20 @@ export function App() {
       setExportPreviewPath(path || null)
     }, EXPORT_PREVIEW_DEBOUNCE)
     return () => window.clearTimeout(timer)
-  }, [showExportPreview, doc])
+  }, [
+    showExportPreview,
+    doc.mode,
+    doc.nodes,
+    doc.edges,
+    doc.tubeFactor,
+    doc.edgeFactors,
+    doc.inwardPull,
+    doc.edgePulls,
+    doc.gooStd,
+    doc.gooThreshold,
+    doc.flattenEpsilon,
+    doc.flattenResolution,
+  ])
 
   // --- derived selection state ------------------------------------------------
   const selectedNode = (() => {
@@ -218,7 +241,7 @@ export function App() {
   const setRadius = (value: number) => {
     if (!selected) return
     const { r, c } = parseKey(selected)
-    coalesceUpdate((d) => ({
+    coalesceUpdate(`radius:${selected}`, (d) => ({
       ...d,
       nodes: d.nodes.map((n) =>
         n.r === r && n.c === c ? { ...n, radius: clampRadius(value) } : n,
@@ -251,25 +274,26 @@ export function App() {
   // --- edge CRUD --------------------------------------------------------------
   const toggleEdge = (aKey: string, bKey: string) => {
     const key = edgeKey(aKey, bKey)
-    let removed = false
-    mutate((d) => {
-      const exists = d.edges.some(([a, b]) => edgeKey(a, b) === key)
-      removed = exists
-      return {
-        ...d,
-        edges: exists
-          ? d.edges.filter(([a, b]) => edgeKey(a, b) !== key)
-          : [...d.edges, [aKey, bKey]],
-        edgeFactors: exists ? dropEdgeKey(d.edgeFactors, key) : d.edgeFactors,
-        edgePulls: exists ? dropEdgeKey(d.edgePulls, key) : d.edgePulls,
-      }
-    })
-    if (removed) setSelectedEdge((k) => (k === key ? null : k))
+    // Decide from the committed doc, not inside the updater — with a pending
+    // update React may defer the updater past the check below.
+    const exists = doc.edges.some(([a, b]) => edgeKey(a, b) === key)
+    mutate((d) => ({
+      ...d,
+      edges: exists
+        ? d.edges.filter(([a, b]) => edgeKey(a, b) !== key)
+        : [...d.edges, [aKey, bKey]],
+      edgeFactors: exists ? dropEdgeKey(d.edgeFactors, key) : d.edgeFactors,
+      edgePulls: exists ? dropEdgeKey(d.edgePulls, key) : d.edgePulls,
+    }))
+    if (exists) setSelectedEdge((k) => (k === key ? null : k))
   }
 
   const setEdgeFactor = (value: number) => {
     if (!selectedEdge) return
-    coalesceUpdate((d) => ({ ...d, edgeFactors: { ...d.edgeFactors, [selectedEdge]: value } }))
+    coalesceUpdate(`edgeFactor:${selectedEdge}`, (d) => ({
+      ...d,
+      edgeFactors: { ...d.edgeFactors, [selectedEdge]: value },
+    }))
   }
   const resetEdgeFactor = () => {
     if (!selectedEdge) return
@@ -281,7 +305,10 @@ export function App() {
   }
   const setEdgePull = (value: number) => {
     if (!selectedEdge) return
-    coalesceUpdate((d) => ({ ...d, edgePulls: { ...d.edgePulls, [selectedEdge]: value } }))
+    coalesceUpdate(`edgePull:${selectedEdge}`, (d) => ({
+      ...d,
+      edgePulls: { ...d.edgePulls, [selectedEdge]: value },
+    }))
   }
   const resetEdgePull = () => {
     if (!selectedEdge) return
@@ -326,6 +353,7 @@ export function App() {
     setSelectedEdge(null)
   }
   const clearCanvas = () => {
+    if (!doc.nodes.length && !doc.edges.length) return
     mutate((d) => ({ ...d, nodes: [], edges: [], edgeFactors: {}, edgePulls: {} }))
     setSelected(null)
     setSelectedEdge(null)
@@ -339,13 +367,14 @@ export function App() {
     setHistory((h) => redo(h))
   }
   const setField = <K extends keyof EditorDoc>(key: K, value: EditorDoc[K]) => {
+    if (doc[key] === value) return
     mutate((d) => ({ ...d, [key]: value }))
   }
   const setFieldCoalesced = <K extends keyof EditorDoc>(key: K, value: EditorDoc[K]) => {
-    coalesceUpdate((d) => ({ ...d, [key]: value }))
+    coalesceUpdate(key, (d) => ({ ...d, [key]: value }))
   }
   const setTheme = (theme: Theme) => {
-    coalesceUpdate((d) => ({ ...d, theme }))
+    coalesceUpdate('theme', (d) => ({ ...d, theme }))
   }
 
   // --- export -----------------------------------------------------------------
@@ -373,16 +402,19 @@ export function App() {
     if (svgRef.current) exportSvg(svgRef.current, { markOnly }, flattenExport())
   }
   const handleExportPng = () => {
-    if (svgRef.current) exportPng(svgRef.current, { markOnly }, flattenExport(), pngScale)
+    if (!svgRef.current) return
+    exportPng(svgRef.current, { markOnly }, flattenExport(), pngScale).catch(() => {
+      window.alert('PNG export failed.')
+    })
   }
-  const handleCopySvg = async () => {
-    if (svgRef.current) await copySvg(svgRef.current, { markOnly }, flattenExport())
+  const handleCopySvg = async (): Promise<boolean> => {
+    if (!svgRef.current) return false
+    return copySvg(svgRef.current, { markOnly }, flattenExport())
   }
   const handleExportJson = () => downloadJson(doc)
   const handleImportJson = (text: string) => {
     try {
       const next = parseDocument(text)
-      skipPersist.current = true
       pushDoc(next)
       setSelected(null)
       setSelectedEdge(null)
@@ -403,22 +435,31 @@ export function App() {
     setSelectedSize,
     selectNode,
   })
-  shortcutHandlers.current = {
-    selected,
-    selectedEdge,
-    undo: doUndo,
-    redo: doRedo,
-    removeNode,
-    removeSelectedEdge,
-    nudgeSelected,
-    setSelectedSize,
-    selectNode,
-  }
+  // Assigned in an effect, not during render — a discarded concurrent render
+  // must not leave handlers that close over never-committed selection state.
+  useEffect(() => {
+    shortcutHandlers.current = {
+      selected,
+      selectedEdge,
+      undo: doUndo,
+      redo: doRedo,
+      removeNode,
+      removeSelectedEdge,
+      nudgeSelected,
+      setSelectedSize,
+      selectNode,
+    }
+  })
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const target = e.target
+      if (
+        target instanceof HTMLElement &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+      ) {
+        return
+      }
       const h = shortcutHandlers.current
       const meta = e.metaKey || e.ctrlKey
 
@@ -531,7 +572,7 @@ export function App() {
         onClear={clearCanvas}
         onExportSvg={handleExportSvg}
         onExportPng={handleExportPng}
-        onCopySvg={() => void handleCopySvg()}
+        onCopySvg={handleCopySvg}
         onExportJson={handleExportJson}
         onImportJsonClick={() => fileInputRef.current?.click()}
       />
@@ -581,8 +622,6 @@ export function App() {
           />
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

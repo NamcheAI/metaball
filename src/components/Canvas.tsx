@@ -6,11 +6,10 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactElement,
 } from 'react'
-import { GRID, VIEWBOX } from '../lib/constants'
+import { CELL, GRID, SIZE_FACTORS, VIEWBOX } from '../lib/constants'
 import {
   cellCenter,
   cellRect,
-  clamp01,
   edgeKey,
   effectiveBlur,
   isInner,
@@ -19,11 +18,15 @@ import {
   nodeKey,
   nodeRadius,
 } from '../lib/geometry'
-import { buildRenderData } from '../lib/render'
+import { buildRenderData, capsuleRadius } from '../lib/render'
 import type { Edge, Mode, Node, Theme } from '../lib/types'
 
 const HIGHLIGHT = '#111'
 const DRAG_THRESHOLD = 5
+/** Minimum pointer-target radius around a node, and the ghost radius while
+ *  dragging a node without a resolvable source. */
+const MIN_HIT_RADIUS = CELL * 0.4
+const DRAG_GHOST_RADIUS = CELL * SIZE_FACTORS.M
 
 interface CanvasProps {
   mode: Mode
@@ -133,7 +136,7 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
     for (const n of nodes) {
       const { cx, cy } = nodeCenter(n)
       const dist = Math.hypot(cx - x, cy - y)
-      if (dist <= Math.max(nodeRadius(n), 100 * 0.4) && dist < best) {
+      if (dist <= Math.max(nodeRadius(n), MIN_HIT_RADIUS) && dist < best) {
         hit = n
         best = dist
       }
@@ -147,10 +150,15 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
     moveNode = false,
   ) => {
     e.stopPropagation()
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
     const p = toSvgPoint(e.clientX, e.clientY)
     pointerStart.current = { x: e.clientX, y: e.clientY }
     setDragState({ from: key, x: p.x, y: p.y, moved: false, moveNode })
+  }
+
+  const resetDrag = () => {
+    setDragState(null)
+    pointerStart.current = null
   }
 
   const handlePointerMove = (e: ReactPointerEvent) => {
@@ -181,8 +189,7 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
     } else {
       onSelect(current.from)
     }
-    setDragState(null)
-    pointerStart.current = null
+    resetDrag()
   }
 
   const dragSourceNode = drag ? nodeMap.get(drag.from) : null
@@ -227,6 +234,7 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
             fill="transparent"
             style={{ cursor: 'copy' }}
             onPointerDown={(e) => {
+              if (e.button !== 0) return
               e.stopPropagation()
               onAddNode(r, c)
             }}
@@ -298,6 +306,8 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
       xmlns="http://www.w3.org/2000/svg"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={resetDrag}
+      onLostPointerCapture={resetDrag}
       onPointerDown={() => onSelect(null)}
     >
       <defs>
@@ -354,9 +364,8 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
           const ca = nodeCenter(a)
           const cb = nodeCenter(b)
           const pull = mode === 'metaball' ? edgePulls[key] ?? inwardPull : 0
-          const unpinched = mode === 'metaball' ? 1 - clamp01(pull) : 1
           const factor = edgeFactors[key] ?? tubeFactor
-          const width = 2 * factor * unpinched * Math.min(nodeRadius(a), nodeRadius(b))
+          const width = 2 * capsuleRadius(factor, pull, nodeRadius(a), nodeRadius(b))
           return (
             <g key={`edgeui-${key}`}>
               {selectedEdge === key && (
@@ -383,6 +392,7 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
                 strokeLinecap="round"
                 style={{ cursor: 'pointer' }}
                 onPointerDown={(e) => {
+                  if (e.button !== 0) return
                   e.stopPropagation()
                   onSelectEdge(key)
                 }}
@@ -403,10 +413,13 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
               <circle
                 cx={cx}
                 cy={cy}
-                r={Math.max(nodeRadius(n), 100 * 0.4)}
+                r={Math.max(nodeRadius(n), MIN_HIT_RADIUS)}
                 fill="transparent"
                 style={{ cursor: drag?.moveNode ? 'grabbing' : 'grab' }}
-                onPointerDown={(e) => beginDrag(e, key, e.altKey || e.shiftKey)}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return
+                  beginDrag(e, key, e.altKey || e.shiftKey)
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   onRemoveNode(key)
@@ -447,7 +460,7 @@ export const Canvas = forwardRef<SVGSVGElement, CanvasProps>(function Canvas(
           <circle
             cx={drag.x}
             cy={drag.y}
-            r={dragSourceNode ? nodeRadius(dragSourceNode) : 100 * 0.44}
+            r={dragSourceNode ? nodeRadius(dragSourceNode) : DRAG_GHOST_RADIUS}
             fill={theme.ink}
             fillOpacity={0.35}
             stroke={HIGHLIGHT}

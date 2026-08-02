@@ -68,11 +68,11 @@ Die Vorschau-Overlay-Checkbox unter „Advanced export" zeigt diesen Pfad als
 gestrichelte Linie über dem gefilterten Rendering — so sieht man vor dem
 Export, wie gut die Kontur trifft.
 
-> Bekanntes Verhalten aus dem Original: Bei `Flatten res.` > 1 bleiben die
-> Pfadkoordinaten im hochskalierten Pixelraum (0…584·res) statt auf die
-> ViewBox zurückgerechnet zu werden. Für 1:1-Marken `Flatten res.` auf 1
-> lassen. Das ist in `flattenToPath` dokumentiert und wäre eine
-> Ein-Zeilen-Korrektur, falls ihr sie wollt.
+> Abweichung vom Original (behoben): Dort blieben bei `Flatten res.` > 1 die
+> Pfadkoordinaten im hochskalierten Pixelraum (0…584·res). Hier werden sie
+> auf die ViewBox zurückgerechnet — höhere Auflösung bringt nur mehr
+> Kontur-Detail, die Ausgabegröße bleibt gleich. Bei `Flatten res.` = 1 ist
+> die Ausgabe weiterhin byte-identisch zum Original.
 
 ## Aufbau
 
@@ -94,7 +94,6 @@ src/
     Slider.tsx      Range+Zahlenfeld mit Commit-Semantik
     ColorField.tsx  Farbwähler
     Section.tsx     Panel-Überschrift
-    Footer.tsx      Hinweiszeile und Links
   App.tsx           State, Handler, Shortcuts, Persistenz
   styles.css        Design-System (Tokens aus theme.css des Originals)
 ```
@@ -142,6 +141,5 @@ bleiben:
 - **Andere Exportgröße** → `VIEWBOX` bestimmt die SVG-Koordinaten,
   `pngScale` nur die Rasterauflösung.
 
-Der `/login`-PIN-Gate und die Impressum/Datenschutz-Seiten des Originals
-sind Vercel-Deployment-Beiwerk und hier nicht enthalten; die Footer-Links
-zeigen weiter auf `/impressum` und `/datenschutz`.
+Der `/login`-PIN-Gate, der Footer und die Impressum/Datenschutz-Seiten des
+Originals sind Deployment-Beiwerk und hier nicht enthalten.

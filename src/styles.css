@@ -61,9 +61,7 @@ body {
 /* --- layout ---------------------------------------------------------------- */
 .app {
   display: grid;
-  grid-template:
-    'sidebar stage' 1fr
-    'footer footer' / 320px 1fr;
+  grid-template: 'sidebar stage' 1fr / 320px 1fr;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -458,68 +456,6 @@ button.danger:active:not(:disabled) {
   user-select: none;
 }
 
-/* --- footer ---------------------------------------------------------------- */
-.app-footer {
-  grid-area: footer;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px 20px;
-  padding: 8px 16px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
-  color: var(--muted);
-  background: var(--panel);
-  border-top: 1px solid var(--panel-border);
-}
-
-.app-footer-hint {
-  flex: 280px;
-  margin: 0;
-}
-
-.app-footer-links {
-  flex-shrink: 0;
-}
-
-.app-footer-meta {
-  margin: 0;
-  white-space: nowrap;
-}
-
-.text-link {
-  font-size: 0.85rem;
-  color: var(--muted);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .text-link:hover {
-    color: var(--text);
-  }
-}
-
-.app-footer .text-link {
-  font: inherit;
-  font-size: inherit;
-  letter-spacing: inherit;
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .app-footer .text-link:hover {
-    color: var(--text);
-    border-bottom-color: var(--text);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   button:active:not(:disabled),
   .segmented button:active:not(:disabled) {
@@ -532,8 +468,7 @@ button.danger:active:not(:disabled) {
   .app {
     grid-template:
       'sidebar'
-      'stage' 1fr
-      'footer' / 1fr;
+      'stage' 1fr / 1fr;
     height: auto;
     min-height: 100vh;
   }
@@ -547,14 +482,5 @@ button.danger:active:not(:disabled) {
 
   .toolbar-panels {
     overflow-y: auto;
-  }
-
-  .app-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .app-footer-meta {
-    white-space: normal;
   }
 }

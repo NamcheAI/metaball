@@ -90,7 +90,8 @@ export interface ToolbarProps {
   onClear: () => void
   onExportSvg: () => void
   onExportPng: () => void
-  onCopySvg: () => void
+  /** Resolves false when the clipboard is unavailable. */
+  onCopySvg: () => Promise<boolean>
   onExportJson: () => void
   onImportJsonClick: () => void
 }
@@ -411,8 +412,12 @@ export function Toolbar(props: ToolbarProps) {
             <button
               className={`chip${copied ? ' is-copied' : ''}`}
               aria-live="polite"
-              onClick={() => {
-                props.onCopySvg()
+              onClick={async () => {
+                const ok = await props.onCopySvg()
+                if (!ok) {
+                  window.alert('Could not copy to the clipboard. Use Export SVG instead.')
+                  return
+                }
                 setCopied(true)
                 if (copiedTimer.current) window.clearTimeout(copiedTimer.current)
                 copiedTimer.current = window.setTimeout(() => setCopied(false), 1500)

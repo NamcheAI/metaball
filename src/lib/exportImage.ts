@@ -40,14 +40,17 @@ export function buildExportSvg(
 
   const filtered = clone.querySelector('g[filter]')
   if (filtered) {
-    if (flatten) {
-      const d = flattenToPath(flatten)
+    const d = flatten ? flattenToPath(flatten) : ''
+    if (flatten && (d || (!flatten.circles.length && !flatten.capsules.length))) {
       const path = document.createElementNS(SVG_NS, 'path')
       path.setAttribute('d', d)
       path.setAttribute('fill', flatten.ink)
       path.setAttribute('fill-rule', 'evenodd')
       filtered.replaceWith(path)
     } else {
+      // No flatten requested, or flattening failed (e.g. no canvas filter
+      // support) — keep the raw circles/capsules rather than exporting an
+      // empty mark.
       filtered.removeAttribute('filter')
     }
   }
@@ -69,12 +72,20 @@ export function serializeSvg(
   return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(svg)}`
 }
 
+/** Returns false when the clipboard is unavailable (insecure context,
+ *  permission denied, document unfocused) instead of failing silently. */
 export async function copySvg(
   source: SVGSVGElement,
   options: ExportOptions,
   flatten: FlattenExport | null,
-): Promise<void> {
-  await navigator.clipboard.writeText(serializeSvg(source, options, flatten))
+): Promise<boolean> {
+  const svg = serializeSvg(source, options, flatten)
+  try {
+    await navigator.clipboard.writeText(svg)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function exportSvg(

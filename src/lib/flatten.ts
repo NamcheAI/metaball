@@ -218,11 +218,9 @@ export interface FlattenInput extends RenderData {
 /**
  * "Flatten" the goo effect into a single filled SVG path: rasterize the
  * circles + capsules, blur, threshold the alpha channel, then trace the
- * resulting contour(s) with marching squares and smooth them.
- *
- * Note: at resolution > 1 the traced coordinates stay in device-pixel space
- * (0…VIEWBOX·resolution) rather than being scaled back to the VIEWBOX, which
- * matches the original editor's behavior. Keep resolution at 1 for a 1:1 mark.
+ * resulting contour(s) with marching squares and smooth them. Contours are
+ * traced in device-pixel space (VIEWBOX · resolution) and scaled back to
+ * VIEWBOX coordinates, so higher resolutions only add tracing detail.
  */
 export function flattenToPath(input: FlattenInput): string {
   if (!input.circles.length && !input.capsules.length) return ''
@@ -260,20 +258,39 @@ export function flattenToPath(input: FlattenInput): string {
   const bctx = blurred.getContext('2d')
   if (!bctx) return ''
   bctx.filter = `blur(${input.gooStd * t}px)`
+  if (bctx.filter === 'none') {
+    // Engine without canvas filter support (e.g. older Safari): tracing the
+    // un-blurred shapes would silently produce a barbell instead of a
+    // metaball, so bail out and let the caller fall back to raw geometry.
+    console.warn('metaball flatten: canvas 2d filters unsupported, skipping flatten')
+    return ''
+  }
   bctx.drawImage(shape, 0, 0)
 
   const data = bctx.getImageData(0, 0, size, size).data
   const threshold = Math.min(0.95, 0.5 + 0.5 / input.gooThreshold)
+  // Sample through a 1px zero border so shapes clipped at the raster edge
+  // still produce closed contours (open chains would otherwise be stitched
+  // into arbitrary fragments).
+  const padded = size + 2
   const rings = marchingSquares(
-    (x, y) => data[(y * size + x) * 4 + 3] / 255,
-    size,
-    size,
+    (x, y) => {
+      const px = x - 1
+      const py = y - 1
+      if (px < 0 || py < 0 || px >= size || py >= size) return 0
+      return data[(py * size + px) * 4 + 3] / 255
+    },
+    padded,
+    padded,
     threshold,
   )
 
   let path = ''
   for (const ring of rings) {
-    const simplified = normalizeRing(ring, epsilon / t)
+    // Undo the border offset and scale from device-pixel space back to
+    // VIEWBOX coordinates, then simplify with epsilon in those final units.
+    const scaled = ring.map((p) => ({ x: (p.x - 1) / t, y: (p.y - 1) / t }))
+    const simplified = normalizeRing(scaled, epsilon)
     if (simplified.length >= 3) path += ringToPath(simplified)
   }
   return path

@@ -9,6 +9,12 @@ const edgeValue = (
   map?: Record<string, number>,
 ) => map?.[edgeKey(a, b)] ?? fallback
 
+/** Capsule radius for an edge: neck factor × un-pinched fraction × the
+ *  smaller node radius. Shared with the canvas hit/highlight widths so the
+ *  clickable area can never drift from the rendered neck. */
+export const capsuleRadius = (factor: number, pull: number, rA: number, rB: number) =>
+  factor * (1 - clamp01(pull)) * Math.min(rA, rB)
+
 /**
  * Turn nodes + edges into the raw geometry the renderer and the flatten
  * exporter both consume: a circle per node and a capsule (fat round-capped
@@ -40,7 +46,7 @@ export function buildRenderData(
     const cb = nodeCenter(b)
     const pull = edgeValue(aKey, bKey, inwardPull, edgePulls)
     const factor = edgeValue(aKey, bKey, tubeFactor, edgeFactors)
-    const r = factor * (1 - clamp01(pull)) * Math.min(nodeRadius(a), nodeRadius(b))
+    const r = capsuleRadius(factor, pull, nodeRadius(a), nodeRadius(b))
     capsules.push({ x1: ca.cx, y1: ca.cy, x2: cb.cx, y2: cb.cy, r })
   }
 
