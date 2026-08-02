@@ -13,9 +13,15 @@
  *   npm run sync:design -- --check         → verify only, non-zero if stale
  */
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+/** Written alongside the vendored files so the consumer can verify them
+ *  without needing access to this repo. */
+const MANIFEST = '.sync-manifest.json'
+const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex')
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '..')
@@ -48,8 +54,8 @@ const { commit, dirty } = gitInfo()
 
 const header = (name) =>
   `/* ${name} — generated file, do not edit.\n` +
-  ` * Source: metaball-generator (${pkg.name}@${pkg.version}) at commit ${commit}${dirty ? '+dirty' : ''}\n` +
-  ` * Regenerate with: npm run sync:design  (in the metaball-generator repo)\n` +
+  ` * Source: metaball (${pkg.name}@${pkg.version}) at commit ${commit}${dirty ? '+dirty' : ''}\n` +
+  ` * Regenerate with: npm run sync:design  (in the metaball repo)\n` +
   ` */\n`
 
 let files
@@ -71,10 +77,12 @@ if (dirty && !checkOnly) {
 await mkdir(target, { recursive: true })
 
 let stale = 0
+const hashes = {}
 for (const file of files.sort()) {
   const body = await readFile(resolve(distDir, file), 'utf8')
   const content = header(file) + body
   const dest = resolve(target, file)
+  hashes[file] = sha256(content)
 
   if (checkOnly) {
     let existing = null
@@ -103,6 +111,19 @@ if (checkOnly) {
   }
   console.log(`up to date: ${target}`)
 } else {
+  const manifest = {
+    package: pkg.name,
+    version: pkg.version,
+    commit: dirty ? `${commit}+dirty` : commit,
+    algorithm: 'sha256',
+    files: hashes,
+  }
+  await writeFile(
+    resolve(target, MANIFEST),
+    JSON.stringify(manifest, null, 2) + '\n',
+    'utf8',
+  )
+  console.log(`→ ${MANIFEST}`)
   console.log(`\n${files.length} files → ${target}`)
-  console.log(`stamped ${pkg.name}@${pkg.version} @ ${commit}${dirty ? '+dirty' : ''}`)
+  console.log(`stamped ${pkg.name}@${pkg.version} @ ${manifest.commit}`)
 }

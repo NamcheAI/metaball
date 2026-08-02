@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build engine and editor
+        run: npm run build
+
+      - name: Test engine
+        run: npm test
+
+      # The baked marks are committed so consumers can use them without
+      # running anything. If the engine changes their shape, that has to show
+      # up as a reviewed diff rather than a silent drift.
+      - name: Baked assets are current
+        run: |
+          npm run bake
+          if ! git diff --quiet -- assets/marks; then
+            echo "::error::assets/marks is out of date — run 'npm run bake' and commit the result."
+            git diff --stat -- assets/marks
+            exit 1
+          fi
+          echo "baked assets match the engine"
