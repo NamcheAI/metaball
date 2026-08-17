@@ -17,7 +17,7 @@ export const KEY_TO_SIZE: Record<string, Size> = { '1': 'S', '2': 'M', '3': 'L',
 
 // Custom-radius slider bounds and cell-offset clamp.
 export const RADIUS_MIN = 20
-export const RADIUS_MAX = 70
+export const RADIUS_MAX = 92
 export const OFFSET_LIMIT = 40
 
 // --- Style defaults ----------------------------------------------------------

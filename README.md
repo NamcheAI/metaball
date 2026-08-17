@@ -11,7 +11,8 @@ expressed as a computation.
 ```bash
 npm install
 npm run dev      # the editor
-npm test         # the engine
+npm test         # engine + studio features
+npm run lint     # editor
 ```
 
 ## What is where
@@ -19,13 +20,27 @@ npm test         # the engine
 | Path | What it is |
 | --- | --- |
 | `core/` | `@namche/metaball` — the engine. Dependency-free, deterministic, TypeScript. |
-| `editor/` | The visual editor. A React app; the only consumer that needs a DOM. |
+| `editor/` | Metaball Studio: 2D authoring, live 3D, motion, materials, and export. |
 | `assets/marks/` | The canonical marks, baked to SVG + JSON. |
 | `scripts/` | `bake-assets.mjs`, `sync-design.mjs`. |
 
 The editor imports the engine — there is one implementation of the geometry,
 not two. A change to how marks are drawn shows up in the editor, in the baked
 assets and in the design system together, or not at all.
+
+### Metaball Studio
+
+The editor turns the same authored node graph into several non-destructive
+views:
+
+- the canonical 2D graph/metaball renderer and flattened SVG/PNG export;
+- a live Three.js Marching Cubes isosurface with material and liquid looks;
+- growth plus deterministic loop motions;
+- GLB export and a Blender handoff bundle with preview and material reference.
+
+Three.js is loaded only when the 3D view is opened. Studio-only settings extend
+the editor document, while nodes, edges, necks, blur, contrast, and pinch always
+map back through `@namche/metaball`.
 
 ## Using the engine
 
@@ -36,6 +51,10 @@ const { d, viewBox } = generate({ preset: 'trio' })     // path data
 const svg = generateSvg({ preset: 'r', fill: '#000' })  // standalone <svg>
 const mask = generateMaskToken({ seed: 'namche' })      // CSS mask token
 ```
+
+With no parameters, `generate()` returns the exact current Namche brandmark.
+The `brandmark` preset keeps that approved silhouette as its golden vector and
+also carries the editable five-node graph used by Metaball Studio.
 
 Give it a `preset`, an explicit `nodes`/`edges` spec, or a `seed` — in that
 order of precedence. The same input always produces the same path, so baked

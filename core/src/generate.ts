@@ -84,7 +84,14 @@ function resolveSpec(params: GenerateParams): { nodes: Node[]; edges: Edge[] } {
  */
 export function generate(params: GenerateParams = {}): GenerateResult {
   const { nodes, edges } = resolveSpec(params)
-  const preset = params.preset ? presetById(params.preset) : null
+  const preset =
+    params.nodes
+      ? null
+      : params.preset
+        ? presetById(params.preset) ?? null
+        : params.seed !== undefined
+          ? null
+          : PRESETS[0]
 
   const neck = params.neck ?? preset?.tubeFactor ?? DEFAULT_TUBE_FACTOR
   const blur = Math.max(0, params.blur ?? preset?.gooStd ?? DEFAULT_GOO_STD)
@@ -112,6 +119,22 @@ export function generate(params: GenerateParams = {}): GenerateResult {
     primitives,
   }
   if (!primitives.circles.length && !primitives.capsules.length) return empty
+
+  const hasShapeOverrides =
+    params.nodes !== undefined ||
+    params.edges !== undefined ||
+    params.edgeFactors !== undefined ||
+    params.edgePulls !== undefined ||
+    params.neck !== undefined ||
+    params.blur !== undefined ||
+    params.contrast !== undefined ||
+    params.pinch !== undefined ||
+    params.detail !== undefined ||
+    params.resolution !== undefined ||
+    params.precision !== undefined
+  if (preset?.referencePath && !hasShapeOverrides) {
+    return { ...empty, d: preset.referencePath }
+  }
 
   const rasterSize = Math.ceil(VIEWBOX * resolution)
   const stdDev = effectiveBlur(blur, pinch) * resolution

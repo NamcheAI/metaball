@@ -9,10 +9,13 @@
     "build": "npm run build -w @namche/metaball && npm run build -w metaball-editor",
     "build:core": "npm run build -w @namche/metaball",
     "dev": "npm run dev -w metaball-editor",
-    "test": "npm run test -w @namche/metaball",
+    "test": "npm run test -w @namche/metaball && npm run test -w metaball-editor && npm run verify:skill-links",
+    "lint": "npm run lint -w metaball-editor",
+    "typecheck": "npm run build:core && npm run typecheck -w metaball-editor",
     "bake": "node scripts/bake-assets.mjs",
     "sync:design": "node scripts/sync-design.mjs",
-    "sync:marks": "node scripts/sync-marks.mjs"
+    "sync:marks": "node scripts/sync-marks.mjs",
+    "verify:skill-links": "node scripts/verify-skill-links.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

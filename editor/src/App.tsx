@@ -1,536 +1,931 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Canvas } from './components/Canvas'
-import { Toolbar } from './components/Toolbar'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MetaballCanvas from './components/MetaballCanvas';
+import AppFooter from './components/AppFooter';
+import Toolbar from './components/Toolbar';
+import { copySvgToClipboard, exportPng, exportSvg, type FlattenSpec } from './lib/export';
 import {
-  clampOffset,
-  clampRadius,
-  edgeKey,
-  generate,
-  nodeKey,
-  nodeRadius,
-  parseKey,
-  PRESETS,
-  RADIUS_MAX,
-  RADIUS_MIN,
-  type EditorDoc,
-  type Size,
-  type Theme,
-} from '@namche/metaball'
-import { EXPORT_PREVIEW_DEBOUNCE, KEY_TO_SIZE } from './lib/appConstants'
+  applyGrowthDisplay,
+  buildGrowthSchedule,
+  GROWTH_DURATION_MS,
+  scalesAtElapsed,
+  type GrowthSchedule,
+} from './lib/growth';
+import { applySimmerDisplay } from './lib/simmer';
 import {
-  cloneDocument,
-  documentFromPreset,
-  downloadJson,
-  dropEdgeKey,
-  dropNodeFromEdgeMap,
-  initialDocument,
-  parseDocument,
-  renameNodeInEdgeMap,
-  saveDocument,
-} from './lib/document'
+  applyBreakableNecks,
+  applyMotion,
+  type LoopMotionId,
+} from './lib/motion';
 import {
   canRedo,
   canUndo,
-  initHistory,
+  createHistory,
   pushHistory,
-  redo,
+  redoHistory,
   replacePresent,
-  undo,
-} from './lib/history'
-import { copySvg, exportPng, exportSvg, type FlattenExport } from './lib/exportImage'
+  undoHistory,
+  type HistoryState,
+} from './lib/history';
+import { generate } from '@namche/metaball';
+import { toGenerateParams } from './lib/coreDocument';
+import {
+  clampOffset,
+  clampRadius,
+  clampSurfaceSamplerCount,
+  clampSurfaceSamplerPointSize,
+  clampSurfaceSamplerSphereSize,
+  cloneDocument,
+  clonePreset,
+  cloneLiquidParams,
+  edgeKey,
+  effectiveNodeRadius,
+  filterEdgeRecordByNode,
+  nodeId,
+  omitEdgeRecordKey,
+  parseNodeId,
+  remapEdgeRecord,
+  PRESETS,
+  RADIUS_MAX,
+  RADIUS_MIN,
+  type Document,
+  type LiquidParams,
+  type LookMode,
+  type NodeId,
+  type PngScale,
+  type Size,
+} from './lib/model';
+import { getLiquidPreset } from './lib/liquidPresets';
+import { getLiquidBackdrop } from './lib/liquidBackdrops';
+import {
+  downloadJson,
+  initialDocument,
+  parseDocumentJson,
+  saveDocument,
+} from './lib/persistence';
+import type { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
+import { getLiveMarchingCubes, type Canvas3DHandle } from './lib/canvas3dHandle';
+import type { RefImageBytes } from './lib/exportBlenderHandoff';
+import './App.css';
 
-/** Map an editor document onto the engine's parameter names. */
-const generateParams = (doc: EditorDoc) => ({
-  nodes: doc.nodes,
-  edges: doc.edges,
-  edgeFactors: doc.edgeFactors,
-  edgePulls: doc.edgePulls,
-  neck: doc.tubeFactor,
-  blur: doc.gooStd,
-  contrast: doc.gooThreshold,
-  pinch: doc.inwardPull,
-  detail: doc.flattenEpsilon,
-  resolution: doc.flattenResolution,
-})
+// Loaded on demand: keeps three.js / react-three-fiber out of the initial
+// bundle for users who only ever use the 2D editor.
+const Metaball3DPreview = lazy(() => import('./components/Metaball3DPreview'));
 
-export function App() {
-  const [history, setHistory] = useState(() => initHistory(initialDocument()))
-  const [selected, setSelected] = useState<string | null>(null)
-  const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
-  const [showGrid, setShowGrid] = useState(true)
-  const [markOnly, setMarkOnly] = useState(false)
-  const [pngScale, setPngScale] = useState(4)
-  const [showExportPreview, setShowExportPreview] = useState(false)
-  const [exportPreviewPath, setExportPreviewPath] = useState<string | null>(null)
+const SIZE_KEYS: Record<string, Size> = { '1': 'S', '2': 'M', '3': 'L', '4': 'XL' };
+const EXPORT_PREVIEW_DEBOUNCE_MS = 180;
 
-  const svgRef = useRef<SVGSVGElement | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  /** Identity of the control currently coalescing into one undo step, or
-   *  null when the next change should start a fresh step. Per-control (not a
-   *  boolean) so an uncommitted keyboard tweak on one slider can't swallow
-   *  the undo step of the next slider drag. */
-  const coalescing = useRef<string | null>(null)
+/** Best-effort file extension for a packed reference image, from its MIME type. */
+function refImageExtension(mime: string): string {
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
+  return 'jpg';
+}
 
-  const doc = history.present
+type ViewMode = '2d' | '3d';
 
-  // --- history primitives ----------------------------------------------------
-  const commit = useCallback(() => {
-    coalescing.current = null
-  }, [])
+export default function App() {
+  const [history, setHistory] = useState<HistoryState>(() => createHistory(initialDocument()));
+  const [selected, setSelected] = useState<NodeId | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>('2d');
+  const [showGrid, setShowGrid] = useState(true);
+  const [markOnly, setMarkOnly] = useState(false);
+  const [pngScale, setPngScale] = useState<PngScale>(4);
+  const [showExportPreview, setShowExportPreview] = useState(false);
+  const [exportPreviewPath, setExportPreviewPath] = useState<string | null>(null);
+  const [customRefImage, setCustomRefImage] = useState<RefImageBytes | null>(null);
+  const [growing, setGrowing] = useState(false);
+  const [growthElapsed, setGrowthElapsed] = useState(0);
+  const [activeMotion, setActiveMotion] = useState<LoopMotionId | null>(null);
+  const [motionElapsed, setMotionElapsed] = useState(0);
+  const [breakNecks, setBreakNecks] = useState(true);
+  const [simmerElapsed, setSimmerElapsed] = useState(0);
 
-  /** Replace the whole document as one undo step (presets, import). */
-  const pushDoc = useCallback((next: EditorDoc) => {
-    coalescing.current = null
-    setHistory((h) => pushHistory(h, next))
-  }, [])
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const mesh3dRef = useRef<MarchingCubes | null>(null);
+  const canvas3dHandleRef = useRef<Canvas3DHandle | null>(null);
+  const importRef = useRef<HTMLInputElement | null>(null);
+  const refImageInputRef = useRef<HTMLInputElement | null>(null);
+  const skipSave = useRef(false);
+  const scrubActive = useRef(false);
+  const growthRafRef = useRef<number | null>(null);
+  const growthEndTimerRef = useRef<number | null>(null);
+  const growthStartRef = useRef(0);
+  const growthScheduleRef = useRef<GrowthSchedule | null>(null);
+  const growingRef = useRef(false);
+  const motionRafRef = useRef<number | null>(null);
+  const motionStartRef = useRef(0);
+  const activeMotionRef = useRef<LoopMotionId | null>(null);
+  const simmerRafRef = useRef<number | null>(null);
 
-  /** Apply a change as its own discrete undo step. */
-  const mutate = useCallback((fn: (doc: EditorDoc) => EditorDoc) => {
-    coalescing.current = null
-    setHistory((h) => pushHistory(h, fn(cloneDocument(h.present))))
-  }, [])
+  const doc = history.present;
 
-  /** Apply a change that coalesces into the current step while the same
-   *  control keeps changing, until commit() (so one slider drag == one
-   *  undo). The ref is read and written outside the updater — inside it,
-   *  StrictMode's double-invoke would flip it on the discarded first run. */
-  const coalesceUpdate = useCallback((group: string, fn: (doc: EditorDoc) => EditorDoc) => {
-    const continues = coalescing.current === group
-    coalescing.current = group
-    setHistory((h) => {
-      const next = fn(cloneDocument(h.present))
-      return continues ? replacePresent(h, next) : pushHistory(h, next)
-    })
-  }, [])
+  const endScrub = useCallback(() => {
+    scrubActive.current = false;
+  }, []);
 
-  // --- persistence (debounced; flushed on unload) -----------------------------
-  const latestDoc = useRef(doc)
+  const commit = useCallback((next: Document) => {
+    scrubActive.current = false;
+    setHistory((prev) => pushHistory(prev, next));
+  }, []);
+
+  const patch = useCallback(
+    (fn: (d: Document) => Document) => {
+      commit(fn(cloneDocument(doc)));
+    },
+    [commit, doc],
+  );
+
+  /** Live-update during a continuous gesture; first change pushes one undo step. */
+  const scrub = useCallback((fn: (d: Document) => Document) => {
+    const startsGesture = !scrubActive.current;
+    if (startsGesture) scrubActive.current = true;
+    setHistory((prev) => {
+      const next = fn(cloneDocument(prev.present));
+      return startsGesture ? pushHistory(prev, next) : replacePresent(prev, next);
+    });
+  }, []);
+
+  // Autosave on document change.
   useEffect(() => {
-    latestDoc.current = doc
-    const timer = window.setTimeout(() => saveDocument(doc), 300)
-    return () => window.clearTimeout(timer)
-  }, [doc])
-  useEffect(() => {
-    const flush = () => saveDocument(latestDoc.current)
-    window.addEventListener('beforeunload', flush)
-    return () => window.removeEventListener('beforeunload', flush)
-  }, [])
+    if (skipSave.current) {
+      skipSave.current = false;
+      return;
+    }
+    saveDocument(doc);
+  }, [doc]);
 
-  // Drop selections that point at nodes/edges that no longer exist.
+  // Drop selection if the target no longer exists (e.g. after undo/redo).
   useEffect(() => {
-    setSelected((key) => {
-      if (!key) return null
-      const { r, c } = parseKey(key)
-      return doc.nodes.some((n) => n.r === r && n.c === c) ? key : null
-    })
-    setSelectedEdge((key) =>
-      key && doc.edges.some(([a, b]) => edgeKey(a, b) === key) ? key : null,
-    )
-  }, [doc.nodes, doc.edges])
+    setSelected((prev) => {
+      if (!prev) return null;
+      const { r, c } = parseNodeId(prev);
+      return doc.nodes.some((node) => node.r === r && node.c === c) ? prev : null;
+    });
+    setSelectedEdge((prev) => {
+      if (!prev) return null;
+      return doc.edges.some(([a, b]) => edgeKey(a, b) === prev) ? prev : null;
+    });
+  }, [doc.nodes, doc.edges]);
 
-  // --- debounced flatten preview ---------------------------------------------
-  // Depends on the individual fields the flatten actually reads (not the
-  // whole doc), so e.g. dragging a theme color doesn't re-trace contours.
+  // Debounced export preview path (marching squares is expensive while scrubbing).
   useEffect(() => {
     if (!showExportPreview || doc.mode !== 'metaball') {
-      setExportPreviewPath(null)
-      return
+      setExportPreviewPath(null);
+      return;
     }
-    const timer = window.setTimeout(() => {
-      const { d } = generate(generateParams(doc))
-      setExportPreviewPath(d || null)
-    }, EXPORT_PREVIEW_DEBOUNCE)
-    return () => window.clearTimeout(timer)
-  }, [
-    showExportPreview,
-    doc.mode,
-    doc.nodes,
-    doc.edges,
-    doc.tubeFactor,
-    doc.edgeFactors,
-    doc.inwardPull,
-    doc.edgePulls,
-    doc.gooStd,
-    doc.gooThreshold,
-    doc.flattenEpsilon,
-    doc.flattenResolution,
-  ])
+    const handle = window.setTimeout(() => {
+      const { d } = generate(toGenerateParams(doc));
+      setExportPreviewPath(d || null);
+    }, EXPORT_PREVIEW_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [showExportPreview, doc]);
 
-  // --- derived selection state ------------------------------------------------
   const selectedNode = (() => {
-    if (!selected) return null
-    const { r, c } = parseKey(selected)
-    return doc.nodes.find((n) => n.r === r && n.c === c) ?? null
-  })()
-  const edgeFactor = selectedEdge ? doc.edgeFactors[selectedEdge] ?? doc.tubeFactor : null
-  const edgeFactorOverridden = selectedEdge ? selectedEdge in doc.edgeFactors : false
-  const edgePull = selectedEdge ? doc.edgePulls[selectedEdge] ?? doc.inwardPull : null
-  const edgePullOverridden = selectedEdge ? selectedEdge in doc.edgePulls : false
+    if (!selected) return null;
+    const { r, c } = parseNodeId(selected);
+    return doc.nodes.find((node) => node.r === r && node.c === c) ?? null;
+  })();
 
-  // --- selection --------------------------------------------------------------
-  const selectNode = (key: string | null) => {
-    setSelected(key)
-    setSelectedEdge(null)
-  }
+  const effectiveEdgeFactor = selectedEdge ? doc.edgeFactors[selectedEdge] ?? doc.tubeFactor : null;
+  const edgeFactorOverridden = selectedEdge ? selectedEdge in doc.edgeFactors : false;
+  const effectiveEdgePull = selectedEdge ? doc.edgePulls[selectedEdge] ?? doc.inwardPull : null;
+  const edgePullOverridden = selectedEdge ? selectedEdge in doc.edgePulls : false;
+
+  const selectNode = (id: NodeId | null) => {
+    setSelected(id);
+    setSelectedEdge(null);
+  };
+
   const selectEdge = (key: string) => {
-    setSelectedEdge(key)
-    setSelected(null)
-  }
+    setSelectedEdge(key);
+    setSelected(null);
+  };
 
-  // --- node CRUD --------------------------------------------------------------
+  const remapEdgeFactors = (
+    factors: Record<string, number>,
+    from: NodeId,
+    to: NodeId,
+  ): Record<string, number> => remapEdgeRecord(factors, from, to);
+
   const addNode = (r: number, c: number) => {
-    const key = nodeKey(r, c)
-    mutate((d) =>
-      d.nodes.some((n) => n.r === r && n.c === c)
-        ? d
-        : { ...d, nodes: [...d.nodes, { r, c, size: 'M' }] },
-    )
-    selectNode(key)
-  }
+    const id = nodeId(r, c);
+    patch((d) => {
+      if (d.nodes.some((node) => node.r === r && node.c === c)) return d;
+      return { ...d, nodes: [...d.nodes, { r, c, size: 'M' }] };
+    });
+    selectNode(id);
+  };
 
-  const removeNode = (key: string) => {
-    const { r, c } = parseKey(key)
-    mutate((d) => ({
+  const removeNode = (id: NodeId) => {
+    const { r, c } = parseNodeId(id);
+    patch((d) => ({
       ...d,
-      nodes: d.nodes.filter((n) => !(n.r === r && n.c === c)),
-      edges: d.edges.filter(([a, b]) => a !== key && b !== key),
-      edgeFactors: dropNodeFromEdgeMap(d.edgeFactors, key),
-      edgePulls: dropNodeFromEdgeMap(d.edgePulls, key),
-    }))
-  }
+      nodes: d.nodes.filter((node) => !(node.r === r && node.c === c)),
+      edges: d.edges.filter(([a, b]) => a !== id && b !== id),
+      edgeFactors: filterEdgeRecordByNode(d.edgeFactors, id),
+      edgePulls: filterEdgeRecordByNode(d.edgePulls, id),
+    }));
+  };
 
-  const moveNode = (fromKey: string, r: number, c: number) => {
-    const toKey = nodeKey(r, c)
-    if (fromKey === toKey) return
-    mutate((d) => {
-      const { r: fr, c: fc } = parseKey(fromKey)
-      const source = d.nodes.find((n) => n.r === fr && n.c === fc)
-      if (!source || d.nodes.some((n) => n.r === r && n.c === c)) return d
-      const moved = { ...source, r, c }
+  const moveNode = (from: NodeId, toR: number, toC: number) => {
+    const to = nodeId(toR, toC);
+    if (from === to) return;
+    patch((d) => {
+      const { r, c } = parseNodeId(from);
+      const node = d.nodes.find((n) => n.r === r && n.c === c);
+      if (!node || d.nodes.some((n) => n.r === toR && n.c === toC)) return d;
+      const moved: typeof node = { ...node, r: toR, c: toC };
       return {
         ...d,
-        nodes: d.nodes.map((n) => (n.r === fr && n.c === fc ? moved : n)),
-        edges: d.edges.map(([a, b]) => [a === fromKey ? toKey : a, b === fromKey ? toKey : b]),
-        edgeFactors: renameNodeInEdgeMap(d.edgeFactors, fromKey, toKey),
-        edgePulls: renameNodeInEdgeMap(d.edgePulls, fromKey, toKey),
-      }
-    })
-    selectNode(toKey)
-  }
+        nodes: d.nodes.map((n) => (n.r === r && n.c === c ? moved : n)),
+        edges: d.edges.map(([a, b]) => [a === from ? to : a, b === from ? to : b] as [NodeId, NodeId]),
+        edgeFactors: remapEdgeFactors(d.edgeFactors, from, to),
+        edgePulls: remapEdgeRecord(d.edgePulls, from, to),
+      };
+    });
+    selectNode(to);
+  };
 
   const setSelectedSize = (size: Size) => {
-    if (!selected) return
-    const { r, c } = parseKey(selected)
-    mutate((d) => ({
+    if (!selected) return;
+    const { r, c } = parseNodeId(selected);
+    patch((d) => ({
       ...d,
-      nodes: d.nodes.map((n) =>
-        n.r === r && n.c === c ? { ...n, size, radius: undefined } : n,
+      nodes: d.nodes.map((node) =>
+        node.r === r && node.c === c ? { ...node, size, radius: undefined } : node,
       ),
-    }))
-  }
+    }));
+  };
 
-  const setRadius = (value: number) => {
-    if (!selected) return
-    const { r, c } = parseKey(selected)
-    coalesceUpdate(`radius:${selected}`, (d) => ({
+  const setSelectedRadius = (radius: number) => {
+    if (!selected) return;
+    const { r, c } = parseNodeId(selected);
+    scrub((d) => ({
       ...d,
-      nodes: d.nodes.map((n) =>
-        n.r === r && n.c === c ? { ...n, radius: clampRadius(value) } : n,
+      nodes: d.nodes.map((node) =>
+        node.r === r && node.c === c ? { ...node, radius: clampRadius(radius) } : node,
       ),
-    }))
-  }
+    }));
+  };
 
-  const resetRadius = () => {
-    if (!selected) return
-    const { r, c } = parseKey(selected)
-    mutate((d) => ({
+  const resetSelectedRadius = () => {
+    if (!selected) return;
+    const { r, c } = parseNodeId(selected);
+    patch((d) => ({
       ...d,
-      nodes: d.nodes.map((n) => (n.r === r && n.c === c ? { ...n, radius: undefined } : n)),
-    }))
-  }
+      nodes: d.nodes.map((node) =>
+        node.r === r && node.c === c ? { ...node, radius: undefined } : node,
+      ),
+    }));
+  };
 
   const nudgeSelected = (dx: number, dy: number) => {
-    if (!selected) return
-    const { r, c } = parseKey(selected)
-    mutate((d) => ({
+    if (!selected) return;
+    const { r, c } = parseNodeId(selected);
+    patch((d) => ({
       ...d,
-      nodes: d.nodes.map((n) =>
-        n.r !== r || n.c !== c
-          ? n
-          : { ...n, offsetX: clampOffset((n.offsetX ?? 0) + dx), offsetY: clampOffset((n.offsetY ?? 0) + dy) },
-      ),
-    }))
-  }
+      nodes: d.nodes.map((node) => {
+        if (node.r !== r || node.c !== c) return node;
+        return {
+          ...node,
+          offsetX: clampOffset((node.offsetX ?? 0) + dx),
+          offsetY: clampOffset((node.offsetY ?? 0) + dy),
+        };
+      }),
+    }));
+  };
 
-  // --- edge CRUD --------------------------------------------------------------
-  const toggleEdge = (aKey: string, bKey: string) => {
-    const key = edgeKey(aKey, bKey)
-    // Decide from the committed doc, not inside the updater — with a pending
-    // update React may defer the updater past the check below.
-    const exists = doc.edges.some(([a, b]) => edgeKey(a, b) === key)
-    mutate((d) => ({
-      ...d,
-      edges: exists
-        ? d.edges.filter(([a, b]) => edgeKey(a, b) !== key)
-        : [...d.edges, [aKey, bKey]],
-      edgeFactors: exists ? dropEdgeKey(d.edgeFactors, key) : d.edgeFactors,
-      edgePulls: exists ? dropEdgeKey(d.edgePulls, key) : d.edgePulls,
-    }))
-    if (exists) setSelectedEdge((k) => (k === key ? null : k))
-  }
+  const toggleEdge = (a: NodeId, b: NodeId) => {
+    const key = edgeKey(a, b);
+    let removed = false;
+    patch((d) => {
+      const exists = d.edges.some(([x, y]) => edgeKey(x, y) === key);
+      removed = exists;
+      return {
+        ...d,
+        edges: exists
+          ? d.edges.filter(([x, y]) => edgeKey(x, y) !== key)
+          : [...d.edges, [a, b]],
+        edgeFactors: exists
+          ? omitEdgeRecordKey(d.edgeFactors, key)
+          : d.edgeFactors,
+        edgePulls: exists ? omitEdgeRecordKey(d.edgePulls, key) : d.edgePulls,
+      };
+    });
+    if (removed) setSelectedEdge((prev) => (prev === key ? null : prev));
+  };
 
   const setEdgeFactor = (value: number) => {
-    if (!selectedEdge) return
-    coalesceUpdate(`edgeFactor:${selectedEdge}`, (d) => ({
-      ...d,
-      edgeFactors: { ...d.edgeFactors, [selectedEdge]: value },
-    }))
-  }
+    if (!selectedEdge) return;
+    scrub((d) => ({ ...d, edgeFactors: { ...d.edgeFactors, [selectedEdge]: value } }));
+  };
+
   const resetEdgeFactor = () => {
-    if (!selectedEdge) return
-    mutate((d) =>
-      selectedEdge in d.edgeFactors
-        ? { ...d, edgeFactors: dropEdgeKey(d.edgeFactors, selectedEdge) }
-        : d,
-    )
-  }
+    if (!selectedEdge) return;
+    patch((d) => {
+      if (!(selectedEdge in d.edgeFactors)) return d;
+      return { ...d, edgeFactors: omitEdgeRecordKey(d.edgeFactors, selectedEdge) };
+    });
+  };
+
   const setEdgePull = (value: number) => {
-    if (!selectedEdge) return
-    coalesceUpdate(`edgePull:${selectedEdge}`, (d) => ({
-      ...d,
-      edgePulls: { ...d.edgePulls, [selectedEdge]: value },
-    }))
-  }
+    if (!selectedEdge) return;
+    scrub((d) => ({ ...d, edgePulls: { ...d.edgePulls, [selectedEdge]: value } }));
+  };
+
   const resetEdgePull = () => {
-    if (!selectedEdge) return
-    mutate((d) =>
-      selectedEdge in d.edgePulls
-        ? { ...d, edgePulls: dropEdgeKey(d.edgePulls, selectedEdge) }
-        : d,
-    )
-  }
+    if (!selectedEdge) return;
+    patch((d) => {
+      if (!(selectedEdge in d.edgePulls)) return d;
+      return { ...d, edgePulls: omitEdgeRecordKey(d.edgePulls, selectedEdge) };
+    });
+  };
+
   const enableEdgeStyle = () => {
-    if (!selectedEdge) return
-    mutate((d) => ({
+    if (!selectedEdge) return;
+    patch((d) => ({
       ...d,
-      edgeFactors: { ...d.edgeFactors, [selectedEdge]: d.edgeFactors[selectedEdge] ?? d.tubeFactor },
-      edgePulls: { ...d.edgePulls, [selectedEdge]: d.edgePulls[selectedEdge] ?? d.inwardPull },
-    }))
-  }
+      edgeFactors: {
+        ...d.edgeFactors,
+        [selectedEdge]: d.edgeFactors[selectedEdge] ?? d.tubeFactor,
+      },
+      edgePulls: {
+        ...d.edgePulls,
+        [selectedEdge]: d.edgePulls[selectedEdge] ?? d.inwardPull,
+      },
+    }));
+  };
+
   const disableEdgeStyle = () => {
-    if (!selectedEdge) return
-    mutate((d) => ({
+    if (!selectedEdge) return;
+    patch((d) => ({
       ...d,
-      edgeFactors: dropEdgeKey(d.edgeFactors, selectedEdge),
-      edgePulls: dropEdgeKey(d.edgePulls, selectedEdge),
-    }))
-  }
+      edgeFactors: omitEdgeRecordKey(d.edgeFactors, selectedEdge),
+      edgePulls: omitEdgeRecordKey(d.edgePulls, selectedEdge),
+    }));
+  };
+
   const removeSelectedEdge = () => {
-    if (!selectedEdge) return
-    mutate((d) => ({
+    if (!selectedEdge) return;
+    patch((d) => ({
       ...d,
-      edges: d.edges.filter(([a, b]) => edgeKey(a, b) !== selectedEdge),
-      edgeFactors: dropEdgeKey(d.edgeFactors, selectedEdge),
-      edgePulls: dropEdgeKey(d.edgePulls, selectedEdge),
-    }))
-  }
+      edges: d.edges.filter(([x, y]) => edgeKey(x, y) !== selectedEdge),
+      edgeFactors: omitEdgeRecordKey(d.edgeFactors, selectedEdge),
+      edgePulls: omitEdgeRecordKey(d.edgePulls, selectedEdge),
+    }));
+  };
 
-  // --- document-level actions -------------------------------------------------
   const applyPreset = (id: string) => {
-    const preset = PRESETS.find((p) => p.id === id)
-    if (!preset) return
-    pushDoc(documentFromPreset(preset))
-    setSelected(null)
-    setSelectedEdge(null)
-  }
-  const clearCanvas = () => {
-    if (!doc.nodes.length && !doc.edges.length) return
-    mutate((d) => ({ ...d, nodes: [], edges: [], edgeFactors: {}, edgePulls: {} }))
-    setSelected(null)
-    setSelectedEdge(null)
-  }
-  const doUndo = () => {
-    commit()
-    setHistory((h) => undo(h))
-  }
-  const doRedo = () => {
-    commit()
-    setHistory((h) => redo(h))
-  }
-  const setField = <K extends keyof EditorDoc>(key: K, value: EditorDoc[K]) => {
-    if (doc[key] === value) return
-    mutate((d) => ({ ...d, [key]: value }))
-  }
-  const setFieldCoalesced = <K extends keyof EditorDoc>(key: K, value: EditorDoc[K]) => {
-    coalesceUpdate(key, (d) => ({ ...d, [key]: value }))
-  }
-  const setTheme = (theme: Theme) => {
-    coalesceUpdate('theme', (d) => ({ ...d, theme }))
-  }
+    const preset = PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    commit(clonePreset(preset));
+    setSelected(null);
+    setSelectedEdge(null);
+  };
 
-  // --- export -----------------------------------------------------------------
-  const flattenExport = (): FlattenExport | null => {
-    if (doc.mode !== 'metaball') return null
-    return { params: generateParams(doc), ink: doc.theme.ink }
-  }
-  const handleExportSvg = () => {
-    if (svgRef.current) exportSvg(svgRef.current, { markOnly }, flattenExport())
-  }
-  const handleExportPng = () => {
-    if (!svgRef.current) return
-    exportPng(svgRef.current, { markOnly }, flattenExport(), pngScale).catch(() => {
-      window.alert('PNG export failed.')
-    })
-  }
-  const handleCopySvg = async (): Promise<boolean> => {
-    if (!svgRef.current) return false
-    return copySvg(svgRef.current, { markOnly }, flattenExport())
-  }
-  const handleExportJson = () => downloadJson(doc)
-  const handleImportJson = (text: string) => {
+  const clear = () => {
+    patch((d) => ({
+      ...d,
+      nodes: [],
+      edges: [],
+      edgeFactors: {},
+      edgePulls: {},
+    }));
+    setSelected(null);
+    setSelectedEdge(null);
+  };
+
+  const undo = () => {
+    endScrub();
+    setHistory((prev) => undoHistory(prev));
+  };
+
+  const redo = () => {
+    endScrub();
+    setHistory((prev) => redoHistory(prev));
+  };
+
+  const updateDocField = <K extends keyof Document>(key: K, value: Document[K]) => {
+    patch((d) => ({ ...d, [key]: value }));
+  };
+
+  const scrubDocField = <K extends keyof Document>(key: K, value: Document[K]) => {
+    scrub((d) => ({ ...d, [key]: value }));
+  };
+
+  const scrubTheme = (theme: Document['theme']) => {
+    scrub((d) => ({ ...d, theme }));
+  };
+
+  const buildFlatten = (): FlattenSpec | null => {
+    if (doc.mode !== 'metaball') return null;
+    // Keep live SVG filters (chromatic rim) instead of a flat path.
+    if (doc.lookMode === 'liquid') return null;
+    return {
+      params: toGenerateParams(doc),
+      ink: doc.theme.ink,
+    };
+  };
+
+  const doExportSvg = () => {
+    stopGrowth();
+    stopMotion();
+    // Defer so the canvas restores authored radii before serializing the SVG.
+    requestAnimationFrame(() => {
+      if (svgRef.current) exportSvg(svgRef.current, { markOnly, keepFilters: doc.lookMode === 'liquid' }, buildFlatten());
+    });
+  };
+
+  const doExportPng = () => {
+    stopGrowth();
+    stopMotion();
+    requestAnimationFrame(() => {
+      if (svgRef.current)
+        void exportPng(
+          svgRef.current,
+          { markOnly, keepFilters: doc.lookMode === 'liquid' },
+          buildFlatten(),
+          pngScale,
+        );
+    });
+  };
+
+  const doCopySvg = async () => {
+    stopGrowth();
+    stopMotion();
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    if (svgRef.current)
+      return copySvgToClipboard(
+        svgRef.current,
+        { markOnly, keepFilters: doc.lookMode === 'liquid' },
+        buildFlatten(),
+      );
+    return false;
+  };
+
+  const doExportJson = () => downloadJson(doc);
+
+  const resolveLiveMesh = () =>
+    mesh3dRef.current ??
+    canvas3dHandleRef.current?.mesh ??
+    getLiveMarchingCubes();
+
+  const doExportGlb = () => {
+    stopGrowth();
+    stopMotion();
+    requestAnimationFrame(() => {
+      const mesh = resolveLiveMesh();
+      if (!mesh || mesh.count === 0) {
+        window.alert('Switch to 3D view and wait for the mesh to build, then try again.');
+        return;
+      }
+      void import('./lib/export3d')
+        .then(({ exportGlb }) =>
+          exportGlb(
+            mesh,
+            doc.materialPreset,
+            'metaball-mark',
+            doc.lookMode === 'liquid' ? doc.liquidParams : null,
+          ),
+        )
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : 'GLB export failed.';
+          window.alert(message);
+        });
+    });
+  };
+
+  const doExportBlenderHandoff = () => {
+    stopGrowth();
+    stopMotion();
+    requestAnimationFrame(() => {
+      const mesh = resolveLiveMesh();
+      const handle = canvas3dHandleRef.current;
+      const canvas =
+        handle?.canvas ??
+        (document.querySelector('.metaball-3d-canvas canvas') as HTMLCanvasElement | null);
+      if (!mesh || mesh.count === 0) {
+        window.alert('Switch to 3D view and wait for the mesh to build, then try again.');
+        return;
+      }
+      if (!canvas) {
+        window.alert('3D canvas is not ready yet — wait a moment and try again.');
+        return;
+      }
+      void import('./lib/exportBlenderHandoff')
+        .then(({ exportBlenderHandoff }) =>
+          exportBlenderHandoff({
+            source: mesh,
+            materialPresetId: doc.materialPreset,
+            liquidParams: doc.lookMode === 'liquid' ? doc.liquidParams : null,
+            liquidPresetId: doc.lookMode === 'liquid' ? doc.liquidPreset : undefined,
+            canvas,
+            invalidate: handle?.invalidate,
+            customRef: customRefImage,
+          }),
+        )
+        .catch((err: unknown) => {
+          const message =
+            err instanceof Error ? err.message : 'Blender handoff export failed.';
+          window.alert(message);
+        });
+    });
+  };
+
+  const doImportJson = (json: string) => {
     try {
-      const next = parseDocument(text)
-      pushDoc(next)
-      setSelected(null)
-      setSelectedEdge(null)
+      const imported = parseDocumentJson(json);
+      skipSave.current = true;
+      commit(imported);
+      setSelected(null);
+      setSelectedEdge(null);
     } catch {
-      window.alert('Could not import JSON. Check the file format.')
+      window.alert('Could not import JSON. Check the file format.');
     }
-  }
+  };
 
-  // --- keyboard shortcuts (latest handlers via ref) ---------------------------
-  const shortcutHandlers = useRef({
+  const keyboardRef = useRef({
     selected,
     selectedEdge,
-    undo: doUndo,
-    redo: doRedo,
+    undo,
+    redo,
     removeNode,
     removeSelectedEdge,
     nudgeSelected,
     setSelectedSize,
     selectNode,
-  })
-  // Assigned in an effect, not during render — a discarded concurrent render
-  // must not leave handlers that close over never-committed selection state.
-  useEffect(() => {
-    shortcutHandlers.current = {
-      selected,
-      selectedEdge,
-      undo: doUndo,
-      redo: doRedo,
-      removeNode,
-      removeSelectedEdge,
-      nudgeSelected,
-      setSelectedSize,
-      selectNode,
-    }
-  })
+  });
+  keyboardRef.current = {
+    selected,
+    selectedEdge,
+    undo,
+    redo,
+    removeNode,
+    removeSelectedEdge,
+    nudgeSelected,
+    setSelectedSize,
+    selectNode,
+  };
 
+  // Keyboard shortcuts.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target
-      if (
-        target instanceof HTMLElement &&
-        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
-      ) {
-        return
-      }
-      const h = shortcutHandlers.current
-      const meta = e.metaKey || e.ctrlKey
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
-      if (meta && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        h.undo()
-        return
+      const kb = keyboardRef.current;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        kb.undo();
+        return;
       }
-      if (meta && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault()
-        h.redo()
-        return
+      if (mod && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        kb.redo();
+        return;
       }
       if (e.key === 'Escape') {
-        h.selectNode(null)
-        return
+        kb.selectNode(null);
+        return;
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !meta) {
-        e.preventDefault()
-        if (h.selectedEdge) h.removeSelectedEdge()
-        else if (h.selected) h.removeNode(h.selected)
-        return
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) {
+        e.preventDefault();
+        if (kb.selectedEdge) kb.removeSelectedEdge();
+        else if (kb.selected) kb.removeNode(kb.selected);
+        return;
       }
-      if (h.selected && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault()
-        const step = e.shiftKey ? 5 : 1
-        if (e.key === 'ArrowUp') h.nudgeSelected(0, -step)
-        if (e.key === 'ArrowDown') h.nudgeSelected(0, step)
-        if (e.key === 'ArrowLeft') h.nudgeSelected(-step, 0)
-        if (e.key === 'ArrowRight') h.nudgeSelected(step, 0)
-        return
+      if (kb.selected && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        if (e.key === 'ArrowUp') kb.nudgeSelected(0, -step);
+        if (e.key === 'ArrowDown') kb.nudgeSelected(0, step);
+        if (e.key === 'ArrowLeft') kb.nudgeSelected(-step, 0);
+        if (e.key === 'ArrowRight') kb.nudgeSelected(step, 0);
+        return;
       }
-      if (h.selected && KEY_TO_SIZE[e.key]) {
-        e.preventDefault()
-        h.setSelectedSize(KEY_TO_SIZE[e.key])
+      if (kb.selected && SIZE_KEYS[e.key]) {
+        e.preventDefault();
+        kb.setSelectedSize(SIZE_KEYS[e.key]);
       }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
-  const selectedRadius = selectedNode ? nodeRadius(selectedNode) : null
-  const radiusOverridden = selectedNode ? selectedNode.radius !== undefined : false
+  const selectedRadius = selectedNode ? effectiveNodeRadius(selectedNode) : null;
+  const radiusOverridden = selectedNode ? selectedNode.radius !== undefined : false;
+
+  const stopGrowth = useCallback(() => {
+    if (growthRafRef.current !== null) {
+      window.cancelAnimationFrame(growthRafRef.current);
+      growthRafRef.current = null;
+    }
+    if (growthEndTimerRef.current !== null) {
+      window.clearTimeout(growthEndTimerRef.current);
+      growthEndTimerRef.current = null;
+    }
+    growthScheduleRef.current = null;
+    growingRef.current = false;
+    setGrowing(false);
+    setGrowthElapsed(0);
+  }, []);
+
+  const stopMotion = useCallback(() => {
+    if (motionRafRef.current !== null) {
+      window.cancelAnimationFrame(motionRafRef.current);
+      motionRafRef.current = null;
+    }
+    activeMotionRef.current = null;
+    setActiveMotion(null);
+    setMotionElapsed(0);
+  }, []);
+
+  const startGrowth = useCallback(() => {
+    if (doc.nodes.length === 0) return;
+    stopMotion();
+    if (growthRafRef.current !== null) {
+      window.cancelAnimationFrame(growthRafRef.current);
+    }
+    if (growthEndTimerRef.current !== null) {
+      window.clearTimeout(growthEndTimerRef.current);
+      growthEndTimerRef.current = null;
+    }
+    const schedule = buildGrowthSchedule(doc.nodes, doc.edges);
+    growthScheduleRef.current = schedule;
+    growthStartRef.current = performance.now();
+    growingRef.current = true;
+    setGrowing(true);
+    setGrowthElapsed(0);
+
+    const tick = (now: number) => {
+      const elapsed = now - growthStartRef.current;
+      if (elapsed >= GROWTH_DURATION_MS) {
+        setGrowthElapsed(GROWTH_DURATION_MS);
+        growthRafRef.current = null;
+        // Hold the finished pose briefly, then restore authored geometry.
+        growthEndTimerRef.current = window.setTimeout(() => {
+          growthEndTimerRef.current = null;
+          growingRef.current = false;
+          setGrowing(false);
+          setGrowthElapsed(0);
+          growthScheduleRef.current = null;
+        }, 200);
+        return;
+      }
+      setGrowthElapsed(elapsed);
+      growthRafRef.current = window.requestAnimationFrame(tick);
+    };
+    growthRafRef.current = window.requestAnimationFrame(tick);
+  }, [doc.nodes, doc.edges, stopMotion]);
+
+  const startMotion = useCallback(
+    (id: LoopMotionId) => {
+      if (doc.nodes.length === 0) return;
+      stopGrowth();
+      if (motionRafRef.current !== null) {
+        window.cancelAnimationFrame(motionRafRef.current);
+      }
+      motionStartRef.current = performance.now();
+      activeMotionRef.current = id;
+      setActiveMotion(id);
+      setMotionElapsed(0);
+
+      const tick = (now: number) => {
+        if (activeMotionRef.current !== id) return;
+        setMotionElapsed(now - motionStartRef.current);
+        motionRafRef.current = window.requestAnimationFrame(tick);
+      };
+      motionRafRef.current = window.requestAnimationFrame(tick);
+    },
+    [doc.nodes.length, stopGrowth],
+  );
+
+  const toggleGrowth = useCallback(() => {
+    if (growing) stopGrowth();
+    else startGrowth();
+  }, [growing, startGrowth, stopGrowth]);
+
+  const toggleMotion = useCallback(
+    (id: LoopMotionId) => {
+      if (activeMotion === id) stopMotion();
+      else startMotion(id);
+    },
+    [activeMotion, startMotion, stopMotion],
+  );
+
+  // Cancel playback if the authored graph changes mid-playback.
+  useEffect(() => {
+    if (growingRef.current) stopGrowth();
+    if (activeMotionRef.current) stopMotion();
+  }, [doc.nodes, doc.edges, stopGrowth, stopMotion]);
+
+  // Idle simmer while liquid and no playback animation.
+  useEffect(() => {
+    const active = doc.lookMode === 'liquid' && !growing && activeMotion === null;
+    if (!active) {
+      if (simmerRafRef.current !== null) {
+        window.cancelAnimationFrame(simmerRafRef.current);
+        simmerRafRef.current = null;
+      }
+      return;
+    }
+    const start = performance.now();
+    const tick = (now: number) => {
+      setSimmerElapsed(now - start);
+      simmerRafRef.current = window.requestAnimationFrame(tick);
+    };
+    simmerRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      if (simmerRafRef.current !== null) {
+        window.cancelAnimationFrame(simmerRafRef.current);
+        simmerRafRef.current = null;
+      }
+    };
+  }, [doc.lookMode, growing, activeMotion]);
+
+  useEffect(
+    () => () => {
+      if (growthRafRef.current !== null) window.cancelAnimationFrame(growthRafRef.current);
+      if (growthEndTimerRef.current !== null) window.clearTimeout(growthEndTimerRef.current);
+      if (motionRafRef.current !== null) window.cancelAnimationFrame(motionRafRef.current);
+      if (simmerRafRef.current !== null) window.cancelAnimationFrame(simmerRafRef.current);
+    },
+    [],
+  );
+
+  const displayGeometry = useMemo(() => {
+    if (growing && growthScheduleRef.current) {
+      const scales = scalesAtElapsed(growthScheduleRef.current, growthElapsed);
+      return {
+        ...applyGrowthDisplay(doc.nodes, doc.edges, scales),
+        style: null,
+        evaporate: 0,
+      };
+    }
+    if (activeMotion) {
+      let styled = applyMotion(activeMotion, doc, motionElapsed);
+      if (breakNecks) styled = applyBreakableNecks(doc, styled, motionElapsed);
+      return {
+        nodes: styled.nodes,
+        edges: styled.edges,
+        style: styled,
+        evaporate: styled.evaporate ?? 0,
+      };
+    }
+    if (doc.lookMode === 'liquid') {
+      const simmered = applySimmerDisplay(doc.nodes, doc.edges, simmerElapsed, 1.65);
+      return {
+        nodes: simmered.nodes,
+        edges: simmered.edges,
+        style: null,
+        evaporate: 0,
+      };
+    }
+    return {
+      nodes: doc.nodes,
+      edges: doc.edges,
+      style: null,
+      evaporate: 0,
+    };
+  }, [growing, growthElapsed, activeMotion, motionElapsed, simmerElapsed, breakNecks, doc]);
+
+  const displayDoc = useMemo((): Document => {
+    const style = displayGeometry.style;
+    const evaporate = displayGeometry.evaporate;
+    const liquidParams =
+      evaporate > 0.01
+        ? {
+            ...doc.liquidParams,
+            edgeSoftness: Math.min(1, doc.liquidParams.edgeSoftness + evaporate * 0.45),
+            bloom: Math.min(1, doc.liquidParams.bloom + evaporate * 0.25),
+            opacity: Math.max(0.05, doc.liquidParams.opacity * (1 - evaporate * 0.55)),
+          }
+        : doc.liquidParams;
+    return {
+      ...doc,
+      nodes: displayGeometry.nodes,
+      edges: displayGeometry.edges,
+      liquidParams,
+      ...(style
+        ? {
+            tubeFactor: style.tubeFactor,
+            inwardPull: style.inwardPull,
+            gooStd: style.gooStd,
+            edgeFactors: style.edgeFactors,
+            edgePulls: style.edgePulls,
+          }
+        : null),
+    };
+  }, [doc, displayGeometry]);
+
+  const canonical2dPath = useMemo(() => {
+    if (displayDoc.mode !== 'metaball') return null;
+    const params = toGenerateParams(displayDoc);
+    return params.preset === 'brandmark' ? generate(params).d : null;
+  }, [displayDoc]);
 
   return (
     <div className="app">
       <Toolbar
         mode={doc.mode}
-        onModeChange={(mode) => setField('mode', mode)}
+        onModeChange={(mode) => updateDocField('mode', mode)}
+        view={view}
+        onViewChange={setView}
+        materialPreset={doc.materialPreset}
+        onMaterialPresetChange={(id) => updateDocField('materialPreset', id)}
+        lookMode={doc.lookMode}
+        onLookModeChange={(mode: LookMode) => updateDocField('lookMode', mode)}
+        liquidPreset={doc.liquidPreset}
+        onLiquidPresetChange={(id) => {
+          const preset = getLiquidPreset(id);
+          commit({
+            ...cloneDocument(doc),
+            liquidPreset: preset.id,
+            liquidParams: cloneLiquidParams(preset.params),
+            lookMode: 'liquid',
+          });
+        }}
+        liquidBackdrop={doc.liquidBackdrop}
+        onLiquidBackdropChange={(id) => updateDocField('liquidBackdrop', id)}
+        liquidParams={doc.liquidParams}
+        onLiquidParamsChange={(patch: Partial<LiquidParams>) =>
+          scrub((d) => ({
+            ...d,
+            lookMode: 'liquid',
+            liquidParams: { ...d.liquidParams, ...patch },
+          }))
+        }
+        onLiquidParamsCommit={endScrub}
+        surfaceSamplerEnabled={doc.surfaceSamplerEnabled}
+        onSurfaceSamplerEnabledChange={(v) => updateDocField('surfaceSamplerEnabled', v)}
+        surfaceSamplerMode={doc.surfaceSamplerMode}
+        onSurfaceSamplerModeChange={(mode) => updateDocField('surfaceSamplerMode', mode)}
+        surfaceSamplerCount={doc.surfaceSamplerCount}
+        onSurfaceSamplerCountChange={(v) =>
+          scrubDocField('surfaceSamplerCount', clampSurfaceSamplerCount(v))
+        }
+        onSurfaceSamplerCountCommit={endScrub}
+        surfaceSamplerPointSize={doc.surfaceSamplerPointSize}
+        onSurfaceSamplerPointSizeChange={(v) =>
+          scrubDocField('surfaceSamplerPointSize', clampSurfaceSamplerPointSize(v))
+        }
+        onSurfaceSamplerPointSizeCommit={endScrub}
+        surfaceSamplerSphereSize={doc.surfaceSamplerSphereSize}
+        onSurfaceSamplerSphereSizeChange={(v) =>
+          scrubDocField('surfaceSamplerSphereSize', clampSurfaceSamplerSphereSize(v))
+        }
+        onSurfaceSamplerSphereSizeCommit={endScrub}
+        surfaceSamplerShowMesh={doc.surfaceSamplerShowMesh}
+        onSurfaceSamplerShowMeshChange={(v) => updateDocField('surfaceSamplerShowMesh', v)}
+        surfaceSamplerAnimate={doc.surfaceSamplerAnimate}
+        onSurfaceSamplerAnimateChange={(v) => updateDocField('surfaceSamplerAnimate', v)}
         selectedSize={selectedNode?.size ?? null}
         onSizeChange={setSelectedSize}
         selectedRadius={selectedRadius}
         radiusOverridden={radiusOverridden}
-        onRadiusChange={setRadius}
-        onRadiusCommit={commit}
-        onRadiusReset={resetRadius}
-        radiusMin={RADIUS_MIN}
-        radiusMax={RADIUS_MAX}
+        onRadiusChange={setSelectedRadius}
+        onRadiusCommit={endScrub}
+        onRadiusReset={resetSelectedRadius}
         onDeleteSelected={() => selected && removeNode(selected)}
         theme={doc.theme}
-        onThemeChange={setTheme}
-        onThemeCommit={commit}
+        onThemeChange={scrubTheme}
+        onThemeCommit={endScrub}
         showGrid={showGrid}
         onShowGridChange={setShowGrid}
         fullGrid={doc.fullGrid}
-        onFullGridChange={(value) => setField('fullGrid', value)}
+        onFullGridChange={(v) => updateDocField('fullGrid', v)}
         gooStd={doc.gooStd}
-        onGooStdChange={(value) => setFieldCoalesced('gooStd', value)}
-        onGooStdCommit={commit}
+        onGooStdChange={(v) => scrubDocField('gooStd', v)}
+        onGooStdCommit={endScrub}
         gooThreshold={doc.gooThreshold}
-        onGooThresholdChange={(value) => setFieldCoalesced('gooThreshold', value)}
-        onGooThresholdCommit={commit}
+        onGooThresholdChange={(v) => scrubDocField('gooThreshold', v)}
+        onGooThresholdCommit={endScrub}
         tubeFactor={doc.tubeFactor}
-        onTubeFactorChange={(value) => setFieldCoalesced('tubeFactor', value)}
-        onTubeFactorCommit={commit}
+        onTubeFactorChange={(v) => scrubDocField('tubeFactor', v)}
+        onTubeFactorCommit={endScrub}
         inwardPull={doc.inwardPull}
-        onInwardPullChange={(value) => setFieldCoalesced('inwardPull', value)}
-        onInwardPullCommit={commit}
+        onInwardPullChange={(v) => scrubDocField('inwardPull', v)}
+        onInwardPullCommit={endScrub}
         flattenEpsilon={doc.flattenEpsilon}
-        onFlattenEpsilonChange={(value) => setFieldCoalesced('flattenEpsilon', value)}
-        onFlattenEpsilonCommit={commit}
+        onFlattenEpsilonChange={(v) => scrubDocField('flattenEpsilon', v)}
+        onFlattenEpsilonCommit={endScrub}
         flattenResolution={doc.flattenResolution}
-        onFlattenResolutionChange={(value) => setFieldCoalesced('flattenResolution', value)}
-        onFlattenResolutionCommit={commit}
+        onFlattenResolutionChange={(v) => scrubDocField('flattenResolution', v)}
+        onFlattenResolutionCommit={endScrub}
         showExportPreview={showExportPreview}
         onShowExportPreviewChange={setShowExportPreview}
         selectedEdge={selectedEdge}
-        edgeFactor={edgeFactor}
+        edgeFactor={effectiveEdgeFactor}
         edgeFactorOverridden={edgeFactorOverridden}
         onEdgeFactorChange={setEdgeFactor}
-        onEdgeFactorCommit={commit}
+        onEdgeFactorCommit={endScrub}
         onEdgeFactorReset={resetEdgeFactor}
-        edgePull={edgePull}
+        edgePull={effectiveEdgePull}
         edgePullOverridden={edgePullOverridden}
         onEdgePullChange={setEdgePull}
-        onEdgePullCommit={commit}
+        onEdgePullCommit={endScrub}
         onEdgePullReset={resetEdgePull}
         onEnableEdgeStyle={enableEdgeStyle}
         onDisableEdgeStyle={disableEdgeStyle}
@@ -541,62 +936,137 @@ export function App() {
         onPngScaleChange={setPngScale}
         canUndo={canUndo(history)}
         canRedo={canRedo(history)}
-        onUndo={doUndo}
-        onRedo={doRedo}
+        onUndo={undo}
+        onRedo={redo}
         onApplyPreset={applyPreset}
-        onClear={clearCanvas}
-        onExportSvg={handleExportSvg}
-        onExportPng={handleExportPng}
-        onCopySvg={handleCopySvg}
-        onExportJson={handleExportJson}
-        onImportJsonClick={() => fileInputRef.current?.click()}
+        onClear={clear}
+        onExportSvg={doExportSvg}
+        onExportPng={doExportPng}
+        onCopySvg={doCopySvg}
+        onExportJson={doExportJson}
+        onExportGlb={doExportGlb}
+        onExportBlenderHandoff={doExportBlenderHandoff}
+        refImageName={customRefImage?.fileName ?? null}
+        onAttachRefImageClick={() => refImageInputRef.current?.click()}
+        onClearRefImage={() => setCustomRefImage(null)}
+        onImportJsonClick={() => importRef.current?.click()}
+        radiusMin={RADIUS_MIN}
+        radiusMax={RADIUS_MAX}
+        growing={growing}
+        onGrowToggle={toggleGrowth}
+        canGrow={doc.nodes.length > 0}
+        activeMotion={activeMotion}
+        onMotionToggle={toggleMotion}
+        canMotion={doc.nodes.length > 0}
+        breakNecks={breakNecks}
+        onBreakNecksChange={setBreakNecks}
       />
 
       <input
-        ref={fileInputRef}
+        ref={importRef}
         type="file"
         accept="application/json,.json"
         hidden
         onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (!file) return
-          const reader = new FileReader()
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
           reader.onload = () => {
-            if (typeof reader.result === 'string') handleImportJson(reader.result)
-          }
-          reader.readAsText(file)
-          e.target.value = ''
+            if (typeof reader.result === 'string') doImportJson(reader.result);
+          };
+          reader.readAsText(file);
+          e.target.value = '';
         }}
       />
 
-      <main className="stage" style={{ background: doc.theme.bg }}>
+      <input
+        ref={refImageInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          void file.arrayBuffer().then((buf) => {
+            const fileName = `ref.${refImageExtension(file.type)}`;
+            setCustomRefImage({ bytes: new Uint8Array(buf), fileName });
+          });
+        }}
+      />
+
+      <main
+        className="stage"
+        style={{
+          background:
+            view === '2d'
+              ? doc.lookMode === 'liquid'
+                ? getLiquidBackdrop(doc.liquidBackdrop).theme.bg
+                : doc.theme.bg
+              : undefined,
+        }}
+      >
         <div className="canvas-wrap">
-          <Canvas
-            ref={svgRef}
-            mode={doc.mode}
-            nodes={doc.nodes}
-            edges={doc.edges}
-            theme={doc.theme}
-            showGrid={showGrid}
-            fullGrid={doc.fullGrid}
-            gooStd={doc.gooStd}
-            gooThreshold={doc.gooThreshold}
-            tubeFactor={doc.tubeFactor}
-            inwardPull={doc.inwardPull}
-            edgeFactors={doc.edgeFactors}
-            edgePulls={doc.edgePulls}
-            selected={selected}
-            selectedEdge={selectedEdge}
-            exportPreviewPath={exportPreviewPath}
-            onAddNode={addNode}
-            onSelect={selectNode}
-            onSelectEdge={selectEdge}
-            onToggleEdge={toggleEdge}
-            onRemoveNode={removeNode}
-            onMoveNode={moveNode}
-          />
+          {view === '3d' ? (
+            <Suspense fallback={<div className="canvas-loading">Loading 3D view…</div>}>
+              <Metaball3DPreview
+                doc={displayDoc}
+                meshRef={mesh3dRef}
+                canvasHandleRef={canvas3dHandleRef}
+                fieldDebounceMs={growing || activeMotion !== null || doc.lookMode === 'liquid' ? 0 : undefined}
+                continuous={activeMotion !== null || doc.lookMode === 'liquid'}
+              />
+            </Suspense>
+          ) : (
+            <MetaballCanvas
+              ref={svgRef}
+              mode={doc.mode}
+              nodes={displayDoc.nodes}
+              edges={displayDoc.edges}
+              theme={
+                doc.lookMode === 'liquid'
+                  ? getLiquidBackdrop(doc.liquidBackdrop).theme
+                  : doc.theme
+              }
+              gridPattern={
+                doc.lookMode === 'liquid'
+                  ? getLiquidBackdrop(doc.liquidBackdrop).pattern
+                  : 'cells'
+              }
+              liquidTime={
+                doc.lookMode === 'liquid'
+                  ? activeMotion
+                    ? motionElapsed
+                    : simmerElapsed
+                  : activeMotion
+                    ? motionElapsed
+                    : 0
+              }
+              showGrid={showGrid}
+              fullGrid={doc.fullGrid}
+              gooStd={displayDoc.gooStd}
+              gooThreshold={doc.gooThreshold}
+              tubeFactor={displayDoc.tubeFactor}
+              inwardPull={displayDoc.inwardPull}
+              edgeFactors={displayDoc.edgeFactors}
+              edgePulls={displayDoc.edgePulls}
+              selected={selected}
+              selectedEdge={selectedEdge}
+              canonicalPath={canonical2dPath}
+              exportPreviewPath={exportPreviewPath}
+              onAddNode={addNode}
+              onSelect={selectNode}
+              onSelectEdge={selectEdge}
+              onToggleEdge={toggleEdge}
+              onRemoveNode={removeNode}
+              onMoveNode={moveNode}
+              liquid={doc.lookMode === 'liquid' ? displayDoc.liquidParams : null}
+            />
+          )}
         </div>
       </main>
+
+      <AppFooter />
     </div>
-  )
+  );
 }
