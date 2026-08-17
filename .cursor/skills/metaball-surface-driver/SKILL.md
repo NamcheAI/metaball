@@ -73,4 +73,4 @@ reads correctly (~40–55%). A/B against palette distance; keep the winner.
 ## Full procedure
 
 See SHADER PROCEDURE in
-[metaball-editor/docs/blender-texture-transfer-prompt.md](../../../metaball-editor/docs/blender-texture-transfer-prompt.md).
+[editor/docs/blender-texture-transfer-prompt.md](../../../editor/docs/blender-texture-transfer-prompt.md).

@@ -1,6 +1,6 @@
 # Optional material tuning
 
-Full recipes live in [metaball-editor/docs/blender-materials.md](../../../../metaball-editor/docs/blender-materials.md).
+Full recipes live in [editor/docs/blender-materials.md](../../../../editor/docs/blender-materials.md).
 
 Reminder: default handoff always uses the universal staged prompt. These notes are look-specific after Stage 1 classifies the reference.
 
