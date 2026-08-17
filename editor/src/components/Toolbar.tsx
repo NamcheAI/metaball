@@ -188,6 +188,26 @@ function NumberSlider({
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   const decimals = step < 0.01 ? 3 : step < 1 ? 2 : 0;
   const safe = Number.isFinite(value) ? value : min;
+  // Keep partially typed values (for example "4" on the way to "40") out of
+  // the clamping path until the edit is committed.
+  const [draft, setDraft] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
+
+  const updateDraft = (next: string | null) => {
+    draftRef.current = next;
+    setDraft(next);
+  };
+
+  const applyDraft = () => {
+    const pending = draftRef.current;
+    if (pending !== null) {
+      const next = Number(pending);
+      if (pending.trim() !== '' && !Number.isNaN(next)) onChange(clamp(next));
+      updateDraft(null);
+    }
+    onCommit?.();
+  };
+
   return (
     <div className="slider-row">
       <span>{label}</span>
@@ -202,8 +222,18 @@ function NumberSlider({
         onChange={(e) => onChange(Number(e.target.value))}
         onPointerUp={onCommit}
         onPointerCancel={onCommit}
+        onBlur={onCommit}
         onKeyUp={(e) => {
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+          if (
+            e.key === 'ArrowLeft' ||
+            e.key === 'ArrowRight' ||
+            e.key === 'ArrowUp' ||
+            e.key === 'ArrowDown' ||
+            e.key === 'PageUp' ||
+            e.key === 'PageDown' ||
+            e.key === 'Home' ||
+            e.key === 'End'
+          ) {
             onCommit?.();
           }
         }}
@@ -215,13 +245,13 @@ function NumberSlider({
         min={min}
         max={max}
         step={step}
-        value={Number(safe.toFixed(decimals))}
+        value={draft ?? Number(safe.toFixed(decimals))}
         disabled={disabled}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (!Number.isNaN(v)) onChange(clamp(v));
+        onChange={(e) => updateDraft(e.target.value)}
+        onBlur={applyDraft}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') applyDraft();
         }}
-        onBlur={onCommit}
       />
     </div>
   );

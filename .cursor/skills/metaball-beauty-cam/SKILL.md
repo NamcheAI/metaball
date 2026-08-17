@@ -52,7 +52,7 @@ Patterned on kevinbadi turntable skills; drive via **ahujasid blender-mcp**
 |-------|---------|-------|
 | `duration` | `5` | seconds |
 | `fps` | `24` | |
-| `camera_distance` | auto | ~1.8× max bbox axis if unset |
+| `camera_distance` | auto | transformed bbox fit to horizontal + vertical FOV |
 | `camera_height` | `0.35 * distance` | soft hero angle |
 | `camera_lens` | `50` | mm |
 | `transparent_bg` | `true` | film_transparent |
