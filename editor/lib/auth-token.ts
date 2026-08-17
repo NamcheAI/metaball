@@ -5,16 +5,44 @@ function bytesToHex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function hmacSign(secret: string, message: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
+function hexToBytes(hex: string): ArrayBuffer | null {
+  if (!/^[0-9a-f]{64}$/i.test(hex)) return null;
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return bytes.buffer;
+}
+
+async function hmacKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign'],
+    ['sign', 'verify'],
   );
+}
+
+async function hmacSign(secret: string, message: string): Promise<string> {
+  const key = await hmacKey(secret);
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
   return bytesToHex(sig);
+}
+
+async function hmacVerify(secret: string, message: string, signature: string): Promise<boolean> {
+  const bytes = hexToBytes(signature);
+  if (!bytes) return false;
+  const key = await hmacKey(secret);
+  return crypto.subtle.verify('HMAC', key, bytes, new TextEncoder().encode(message));
+}
+
+/** Compare PIN-like shared secrets without a data-dependent string comparison. */
+export async function verifySharedSecret(
+  signingSecret: string,
+  candidate: string,
+  expected: string,
+): Promise<boolean> {
+  const expectedSignature = await hmacSign(signingSecret, expected);
+  return hmacVerify(signingSecret, candidate, expectedSignature);
 }
 
 export async function createAuthToken(secret: string): Promise<string> {
@@ -33,8 +61,7 @@ export async function verifyAuthToken(
   if (dot <= 0) return false;
   const payloadB64 = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  const expected = await hmacSign(secret, payloadB64);
-  if (sig !== expected) return false;
+  if (!(await hmacVerify(secret, payloadB64, sig))) return false;
   try {
     const { exp } = JSON.parse(atob(payloadB64)) as { exp?: number };
     return typeof exp === 'number' && exp > Math.floor(Date.now() / 1000);

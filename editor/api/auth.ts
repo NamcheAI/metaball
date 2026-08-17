@@ -1,8 +1,9 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../lib/vercel-types.js';
 import {
   authCookieHeader,
   authEnabled,
   createAuthToken,
+  verifySharedSecret,
 } from '../lib/auth-token.js';
 
 function readPin(req: VercelRequest): string {
@@ -29,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const pin = readPin(req).trim();
-  if (pin !== process.env.AUTH_PIN) {
+  if (!(await verifySharedSecret(process.env.AUTH_SECRET!, pin, process.env.AUTH_PIN!))) {
     return res.redirect(302, '/login?error=1');
   }
 

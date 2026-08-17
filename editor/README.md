@@ -189,13 +189,13 @@ src/
     Metaball3DPreview.tsx    R3F/MarchingCubes 3D showcase renderer
     Toolbar.tsx              controls panel
   lib/
-    model.ts                 types, grid geometry, presets, document schema
+    model.ts                 studio document + compatibility adapter to core
+    coreDocument.ts          studio document -> @namche/metaball parameters
     history.ts               undo/redo stack
     persistence.ts           localStorage autosave + JSON import/export
     export.ts                SVG / PNG export + clipboard
     export3d.ts              GLB export of the live isosurface
     exportBlenderHandoff.ts  Zip package for Blender MCP handoff
-    marching.ts              metaball flattening (marching squares)
     metaball3d.ts            document -> MarchingCubes field adapter
     materialPresets.ts       PBR stand-in catalog for the 3D view
     organicMaterials.ts      MeshPhysicalMaterial factory + GLB export params
@@ -215,4 +215,6 @@ circles plus a tube along each edge, all inside an SVG goo filter
 organically. Export flattens the same field into a smooth SVG path via marching
 squares.
 
-Grid dimensions live as constants in `src/lib/model.ts` and are easy to enlarge.
+Grid geometry and 2D flattening come from the repository's
+`@namche/metaball` workspace. `src/lib/model.ts` only adds studio-specific
+look, material, liquid, and surface-sampler state.

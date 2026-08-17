@@ -1,50 +1,53 @@
-import type { EditorDoc } from '@namche/metaball'
-import { HISTORY_LIMIT } from './appConstants'
-import { cloneDocument } from './document'
+import { cloneDocument, type Document } from './model';
 
-export interface History {
-  past: EditorDoc[]
-  present: EditorDoc
-  future: EditorDoc[]
+const MAX_HISTORY = 50;
+
+export type HistoryState = {
+  past: Document[];
+  present: Document;
+  future: Document[];
+};
+
+export function createHistory(present: Document): HistoryState {
+  return { past: [], present, future: [] };
 }
 
-export const initHistory = (present: EditorDoc): History => ({
-  past: [],
-  present,
-  future: [],
-})
-
-/** Commit a new present, pushing the old one onto the undo stack. */
-export function pushHistory(history: History, next: EditorDoc): History {
-  const past = [...history.past, cloneDocument(history.present)]
-  if (past.length > HISTORY_LIMIT) past.shift()
-  return { past, present: cloneDocument(next), future: [] }
+export function pushHistory(state: HistoryState, next: Document): HistoryState {
+  const present = cloneDocument(next);
+  const past = [...state.past, cloneDocument(state.present)];
+  if (past.length > MAX_HISTORY) past.shift();
+  return { past, present, future: [] };
 }
 
-/** Replace the present without adding an undo step (for coalesced drags). */
-export function replacePresent(history: History, next: EditorDoc): History {
-  return { ...history, present: cloneDocument(next) }
+/** Update present without adding a history entry (used while scrubbing sliders). */
+export function replacePresent(state: HistoryState, next: Document): HistoryState {
+  return { ...state, present: cloneDocument(next) };
 }
 
-export function undo(history: History): History {
-  if (!history.past.length) return history
-  const previous = history.past[history.past.length - 1]
+export function undoHistory(state: HistoryState): HistoryState {
+  if (!state.past.length) return state;
+  const previous = state.past[state.past.length - 1];
   return {
-    past: history.past.slice(0, -1),
+    past: state.past.slice(0, -1),
     present: cloneDocument(previous),
-    future: [cloneDocument(history.present), ...history.future],
-  }
+    future: [cloneDocument(state.present), ...state.future],
+  };
 }
 
-export function redo(history: History): History {
-  if (!history.future.length) return history
-  const next = history.future[0]
+export function redoHistory(state: HistoryState): HistoryState {
+  if (!state.future.length) return state;
+  const next = state.future[0];
   return {
-    past: [...history.past, cloneDocument(history.present)],
+    past: [...state.past, cloneDocument(state.present)],
     present: cloneDocument(next),
-    future: history.future.slice(1),
-  }
+    future: state.future.slice(1),
+  };
 }
 
-export const canUndo = (history: History) => history.past.length > 0
-export const canRedo = (history: History) => history.future.length > 0
+export function canUndo(state: HistoryState): boolean {
+  return state.past.length > 0;
+}
+
+export function canRedo(state: HistoryState): boolean {
+  return state.future.length > 0;
+}

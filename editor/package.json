@@ -3,23 +3,34 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Metaball brandmark editor — reconstructed, extensible source",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "lint": "oxlint",
     "preview": "vite preview",
+    "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
     "@namche/metaball": "*",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.7.0",
+    "@react-three/postprocessing": "^3.0.5",
+    "fflate": "^0.8.3",
+    "postprocessing": "^6.39.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "three": "^0.185.1"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.185.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "tsx": "^4.20.6",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
   }
 }

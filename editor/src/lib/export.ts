@@ -1,5 +1,5 @@
+import { generate, type GenerateParams } from '@namche/metaball';
 import { SVG_SIZE } from './model';
-import { metaballPath, type FlattenParams } from './marching';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -11,7 +11,7 @@ export type ExportOptions = {
 
 // When present, the metaball is flattened to a real vector path so it survives
 // export to tools that ignore SVG filters (Figma, Illustrator).
-export type FlattenSpec = FlattenParams & { ink: string };
+export type FlattenSpec = { params: GenerateParams; ink: string };
 
 // Produce a clean, standalone SVG element for export.
 function buildExportSvg(
@@ -32,7 +32,7 @@ function buildExportSvg(
   const filtered = clone.querySelector('g[filter]');
   if (filtered) {
     if (flatten) {
-      const d = metaballPath(flatten);
+      const { d } = generate(flatten.params);
       const path = document.createElementNS(SVG_NS, 'path');
       path.setAttribute('d', d);
       path.setAttribute('fill', flatten.ink);
@@ -82,9 +82,14 @@ export async function copySvgToClipboard(
   source: SVGSVGElement,
   opts: ExportOptions,
   flatten?: FlattenSpec | null,
-): Promise<void> {
+): Promise<boolean> {
   const svgString = serializeSvg(source, opts, flatten);
-  await navigator.clipboard.writeText(svgString);
+  try {
+    await navigator.clipboard.writeText(svgString);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function exportSvg(

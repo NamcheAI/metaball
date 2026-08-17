@@ -21,7 +21,10 @@ jobs:
       - name: Build engine and editor
         run: npm run build
 
-      - name: Test engine
+      - name: Lint editor
+        run: npm run lint
+
+      - name: Test engine and editor
         run: npm test
 
       # The baked marks are committed so consumers can use them without

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../lib/vercel-types.js';
 import { clearAuthCookieHeader } from '../lib/auth-token.js';
 
 export default function handler(_req: VercelRequest, res: VercelResponse) {

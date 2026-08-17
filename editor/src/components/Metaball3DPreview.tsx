@@ -143,8 +143,7 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
         false,
         350000,
       ),
-    // Recreate when field resolution changes (HMR / future tunable).
-    [MC_RESOLUTION],
+    [],
   );
 
   const points = useMemo(() => {
