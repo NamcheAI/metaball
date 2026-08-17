@@ -189,6 +189,7 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
   };
 
   const handleNodeDown = (e: React.PointerEvent, id: NodeId, moveNode = false) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const p = toSvg(e.clientX, e.clientY);
@@ -285,6 +286,7 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
             fill="transparent"
             style={{ cursor: 'copy' }}
             onPointerDown={(e) => {
+              if (e.button !== 0) return;
               e.stopPropagation();
               onAddNode(r, c);
             }}
@@ -364,7 +366,17 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
       xmlns="http://www.w3.org/2000/svg"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerDown={() => onSelect(null)}
+      onPointerCancel={() => {
+        updateDrag(null);
+        downPos.current = null;
+      }}
+      onLostPointerCapture={() => {
+        updateDrag(null);
+        downPos.current = null;
+      }}
+      onPointerDown={(e) => {
+        if (e.button === 0) onSelect(null);
+      }}
     >
       <defs>
         <filter id="goo" x="-40%" y="-40%" width="180%" height="180%" colorInterpolationFilters="sRGB">
@@ -607,6 +619,7 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
                 strokeLinecap="round"
                 style={{ cursor: 'pointer' }}
                 onPointerDown={(e) => {
+                  if (e.button !== 0) return;
                   e.stopPropagation();
                   onSelectEdge(key);
                 }}

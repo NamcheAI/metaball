@@ -193,6 +193,7 @@ function NumberSlider({
       <span>{label}</span>
       <input
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={step}
@@ -209,6 +210,7 @@ function NumberSlider({
       />
       <input
         type="number"
+        aria-label={`${label} value`}
         className="num"
         min={min}
         max={max}

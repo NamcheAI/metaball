@@ -5,6 +5,12 @@ import {
   createAuthToken,
   verifySharedSecret,
 } from '../lib/auth-token.js';
+import {
+  loginRateLimitKey,
+  resetLoginAttempts,
+  takeLoginAttempt,
+} from '../lib/login-rate-limit.js';
+import { safeRedirectPath } from '../lib/redirect-path.js';
 
 function readPin(req: VercelRequest): string {
   const body = req.body;
@@ -29,16 +35,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.redirect(302, '/');
   }
 
+  const source = loginRateLimitKey(req);
+  const attempt = takeLoginAttempt(source);
+  if (!attempt.allowed) {
+    res.setHeader('Retry-After', String(attempt.retryAfterSeconds));
+    return res.redirect(302, '/login?error=rate');
+  }
+
   const pin = readPin(req).trim();
   if (!(await verifySharedSecret(process.env.AUTH_SECRET!, pin, process.env.AUTH_PIN!))) {
     return res.redirect(302, '/login?error=1');
   }
 
+  resetLoginAttempts(source);
   const token = await createAuthToken(process.env.AUTH_SECRET!);
   res.setHeader('Set-Cookie', authCookieHeader(token));
-  const from =
-    typeof req.query.from === 'string' && req.query.from.startsWith('/')
-      ? req.query.from
-      : '/';
-  return res.redirect(302, from);
+  return res.redirect(302, safeRedirectPath(req.query.from));
 }

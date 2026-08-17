@@ -4,6 +4,7 @@ export interface VercelRequest {
   method?: string;
   body?: unknown;
   query: Record<string, VercelQueryValue>;
+  headers: Record<string, VercelQueryValue>;
 }
 
 export interface VercelResponse {

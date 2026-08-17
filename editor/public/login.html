@@ -162,8 +162,13 @@
     </div>
     <script>
       const params = new URLSearchParams(window.location.search);
-      if (params.get('error')) {
-        document.getElementById('error').hidden = false;
+      const error = params.get('error');
+      if (error) {
+        const errorElement = document.getElementById('error');
+        if (error === 'rate') {
+          errorElement.textContent = 'Too many attempts. Please wait before trying again.';
+        }
+        errorElement.hidden = false;
       }
       const from = params.get('from');
       if (from && from.startsWith('/') && !from.startsWith('//')) {

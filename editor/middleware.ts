@@ -1,3 +1,4 @@
+import { next } from '@vercel/functions';
 import {
   authEnabled,
   getCookie,
@@ -12,11 +13,11 @@ export const config = {
 };
 
 export default async function middleware(request: Request): Promise<Response> {
-  if (!authEnabled()) return fetch(request);
+  if (!authEnabled()) return next();
 
   const secret = process.env.AUTH_SECRET!;
   const token = getCookie(request, AUTH_COOKIE);
-  if (await verifyAuthToken(secret, token)) return fetch(request);
+  if (await verifyAuthToken(secret, token)) return next();
 
   const loginUrl = new URL('/login', request.url);
   const path = new URL(request.url).pathname;

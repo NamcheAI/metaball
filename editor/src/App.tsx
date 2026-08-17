@@ -138,13 +138,11 @@ export default function App() {
 
   /** Live-update during a continuous gesture; first change pushes one undo step. */
   const scrub = useCallback((fn: (d: Document) => Document) => {
+    const startsGesture = !scrubActive.current;
+    if (startsGesture) scrubActive.current = true;
     setHistory((prev) => {
       const next = fn(cloneDocument(prev.present));
-      if (!scrubActive.current) {
-        scrubActive.current = true;
-        return pushHistory(prev, next);
-      }
-      return replacePresent(prev, next);
+      return startsGesture ? pushHistory(prev, next) : replacePresent(prev, next);
     });
   }, []);
 
