@@ -1,11 +1,24 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  authConfiguration,
   authCookieHeader,
   createAuthToken,
   verifyAuthToken,
   verifySharedSecret,
 } from '../lib/auth-token';
+
+test('server auth requires complete credentials or an explicit opt-out', () => {
+  assert.deepEqual(authConfiguration({}), { mode: 'invalid' });
+  assert.deepEqual(authConfiguration({ AUTH_PIN: '1234' }), { mode: 'invalid' });
+  assert.deepEqual(authConfiguration({ AUTH_SECRET: 'secret' }), { mode: 'invalid' });
+  assert.deepEqual(authConfiguration({ AUTH_DISABLED: '1' }), { mode: 'disabled' });
+  assert.deepEqual(authConfiguration({ AUTH_PIN: '1234', AUTH_SECRET: 'secret' }), {
+    mode: 'enabled',
+    pin: '1234',
+    secret: 'secret',
+  });
+});
 
 test('auth tokens verify and reject tampering', async () => {
   const token = await createAuthToken('test-secret');

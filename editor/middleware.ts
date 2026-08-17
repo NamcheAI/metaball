@@ -1,6 +1,6 @@
 import { next } from '@vercel/functions';
 import {
-  authEnabled,
+  authConfiguration,
   getCookie,
   verifyAuthToken,
   AUTH_COOKIE,
@@ -13,11 +13,14 @@ export const config = {
 };
 
 export default async function middleware(request: Request): Promise<Response> {
-  if (!authEnabled()) return next();
+  const auth = authConfiguration();
+  if (auth.mode === 'disabled') return next();
+  if (auth.mode === 'invalid') {
+    return new Response('Authentication is not configured', { status: 503 });
+  }
 
-  const secret = process.env.AUTH_SECRET!;
   const token = getCookie(request, AUTH_COOKIE);
-  if (await verifyAuthToken(secret, token)) return next();
+  if (await verifyAuthToken(auth.secret, token)) return next();
 
   const loginUrl = new URL('/login', request.url);
   const path = new URL(request.url).pathname;

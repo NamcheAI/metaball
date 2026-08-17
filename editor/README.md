@@ -19,8 +19,9 @@ npm run preview  # preview the production build
 ## Deploy to Vercel (PIN login)
 
 The editor can be deployed to [Vercel](https://vercel.com) with a simple PIN gate.
-When `AUTH_PIN` and `AUTH_SECRET` are set, visitors must enter the PIN once; a signed
-httpOnly cookie keeps them signed in for 7 days.
+Vercel deployments require a complete auth configuration: visitors enter the PIN
+once, then a signed httpOnly cookie keeps them signed in for 7 days. Missing or
+partial credentials fail closed with HTTP 503.
 
 ### 1. Push the project
 
@@ -48,6 +49,8 @@ Apply to **Production** (and Preview if you want PIN on preview URLs too).
 Create or connect an Upstash Redis database through the Vercel Marketplace first;
 the shared store enforces five PIN attempts per source across all function instances.
 When authentication is enabled, login fails closed if this store is unavailable.
+Only intentionally public Vercel deployments should set `AUTH_DISABLED=1`; omitting
+credentials alone never disables authentication.
 
 ### 4. Deploy
 

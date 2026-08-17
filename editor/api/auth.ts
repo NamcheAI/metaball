@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '../lib/vercel-types.js';
 import {
   authCookieHeader,
-  authEnabled,
+  authConfiguration,
   createAuthToken,
   verifySharedSecret,
 } from '../lib/auth-token.js';
@@ -31,9 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).end();
   }
 
-  if (!authEnabled()) {
+  const auth = authConfiguration();
+  if (auth.mode === 'disabled') {
     return res.redirect(302, '/');
   }
+  if (auth.mode === 'invalid') return res.status(503).end();
 
   const source = loginRateLimitKey(req);
   let attempt;
@@ -49,12 +51,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const pin = readPin(req).trim();
-  if (!(await verifySharedSecret(process.env.AUTH_SECRET!, pin, process.env.AUTH_PIN!))) {
+  if (!(await verifySharedSecret(auth.secret, pin, auth.pin))) {
     return res.redirect(302, '/login?error=1');
   }
 
   await resetLoginAttempts(source);
-  const token = await createAuthToken(process.env.AUTH_SECRET!);
+  const token = await createAuthToken(auth.secret);
   res.setHeader('Set-Cookie', authCookieHeader(token));
   return res.redirect(302, safeRedirectPath(req.query.from));
 }

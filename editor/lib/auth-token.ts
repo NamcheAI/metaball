@@ -99,6 +99,22 @@ export function clearAuthCookieHeader(): string {
   return authCookieHeader('', 0);
 }
 
-export function authEnabled(): boolean {
-  return Boolean(process.env.AUTH_PIN && process.env.AUTH_SECRET);
+export type AuthConfiguration =
+  | { mode: 'disabled' }
+  | { mode: 'invalid' }
+  | { mode: 'enabled'; pin: string; secret: string };
+
+/**
+ * Server auth is opt-out, not opt-in. `npm run dev` never invokes the Vercel
+ * middleware; any Vercel-style runtime must either have complete credentials
+ * or carry the deliberate AUTH_DISABLED=1 escape hatch.
+ */
+export function authConfiguration(
+  env: Record<string, string | undefined> = process.env,
+): AuthConfiguration {
+  if (env.AUTH_DISABLED === '1') return { mode: 'disabled' };
+  if (env.AUTH_PIN && env.AUTH_SECRET) {
+    return { mode: 'enabled', pin: env.AUTH_PIN, secret: env.AUTH_SECRET };
+  }
+  return { mode: 'invalid' };
 }
