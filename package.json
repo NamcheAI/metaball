@@ -11,7 +11,7 @@
     "dev": "npm run dev -w metaball-editor",
     "test": "npm run test -w @namche/metaball && npm run test -w metaball-editor",
     "lint": "npm run lint -w metaball-editor",
-    "typecheck": "npm run typecheck -w metaball-editor",
+    "typecheck": "npm run build:core && npm run typecheck -w metaball-editor",
     "bake": "node scripts/bake-assets.mjs",
     "sync:design": "node scripts/sync-design.mjs",
     "sync:marks": "node scripts/sync-marks.mjs"

@@ -4,6 +4,16 @@ import { VIEWBOX, generate } from '@namche/metaball';
 import { toGenerateParams } from '../src/lib/coreDocument';
 import { PRESETS, clonePreset } from '../src/lib/model';
 
+test('the untouched studio default maps to the exact brandmark preset', () => {
+  const preset = PRESETS[0];
+  assert.equal(preset.id, 'brandmark');
+  const doc = clonePreset(preset);
+
+  assert.deepEqual(toGenerateParams(doc), { preset: 'brandmark' });
+  assert.equal(generate(toGenerateParams(doc)).d, generate({ preset: 'brandmark' }).d);
+  assert.equal(doc.fullGrid, true);
+});
+
 test('studio presets flatten through the canonical engine', () => {
   const preset = PRESETS.find(({ id }) => id === 'r');
   assert.ok(preset);

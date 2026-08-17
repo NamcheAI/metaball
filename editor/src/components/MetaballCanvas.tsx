@@ -47,6 +47,7 @@ type Props = {
   edgePulls: Record<string, number>;
   selected: NodeId | null;
   selectedEdge: string | null;
+  canonicalPath?: string | null;
   exportPreviewPath: string | null;
   onAddNode: (r: number, c: number) => void;
   onSelect: (id: NodeId | null) => void;
@@ -87,6 +88,7 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
     edgePulls,
     selected,
     selectedEdge,
+    canonicalPath = null,
     exportPreviewPath,
     onAddNode,
     onSelect,
@@ -297,7 +299,9 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
       ? getMetaballShapes(nodes, edges, tubeFactor, edgeFactors, inwardPull, edgePulls)
       : null;
 
-  const markChildren = markShapes ? (
+  const markChildren = canonicalPath ? (
+    <path d={canonicalPath} fill={markFill} fillRule="evenodd" />
+  ) : markShapes ? (
     <>
       {markShapes.capsules.map((cap, i) => (
         <line
@@ -537,8 +541,10 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
       {mode === 'metaball' ? (
         isLiquid ? (
           <g filter="url(#prismRim)">
-            <g filter="url(#goo)">{markChildren}</g>
+            {canonicalPath ? markChildren : <g filter="url(#goo)">{markChildren}</g>}
           </g>
+        ) : canonicalPath ? (
+          <g>{markChildren}</g>
         ) : (
           <g filter="url(#goo)">{markChildren}</g>
         )

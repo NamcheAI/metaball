@@ -222,7 +222,42 @@ export function clonePreset(preset: Preset): Document {
   if (preset.tubeFactor !== undefined) doc.tubeFactor = preset.tubeFactor;
   if (preset.gooStd !== undefined) doc.gooStd = preset.gooStd;
   if (preset.gooThreshold !== undefined) doc.gooThreshold = preset.gooThreshold;
+  if (preset.fullGrid !== undefined) doc.fullGrid = preset.fullGrid;
   return doc;
+}
+
+const sameNode = (a: GridNode, b: GridNode): boolean =>
+  a.r === b.r &&
+  a.c === b.c &&
+  a.size === b.size &&
+  a.radius === b.radius &&
+  a.offsetX === b.offsetX &&
+  a.offsetY === b.offsetY;
+
+/** True while a document still represents the untouched canonical brandmark. */
+export function isBrandmarkDocument(doc: Document): boolean {
+  const preset = CORE_PRESETS.find((candidate) => candidate.id === 'brandmark');
+  if (!preset || doc.nodes.length !== preset.nodes.length || doc.edges.length !== preset.edges.length) {
+    return false;
+  }
+  const nodes = [...doc.nodes].sort((a, b) => nodeId(a.r, a.c).localeCompare(nodeId(b.r, b.c)));
+  const presetNodes = [...preset.nodes].sort((a, b) =>
+    nodeId(a.r, a.c).localeCompare(nodeId(b.r, b.c)),
+  );
+  const edges = doc.edges.map(([a, b]) => edgeKey(a, b)).sort();
+  const presetEdges = preset.edges.map(([a, b]) => edgeKey(a, b)).sort();
+  return (
+    nodes.every((node, index) => sameNode(node, presetNodes[index])) &&
+    edges.every((edge, index) => edge === presetEdges[index]) &&
+    Object.keys(doc.edgeFactors).length === 0 &&
+    Object.keys(doc.edgePulls).length === 0 &&
+    doc.tubeFactor === (preset.tubeFactor ?? TUBE_RADIUS_FACTOR) &&
+    doc.gooStd === (preset.gooStd ?? GOO_STD) &&
+    doc.gooThreshold === (preset.gooThreshold ?? GOO_THRESHOLD) &&
+    doc.inwardPull === INWARD_PULL &&
+    doc.flattenEpsilon === FLATTEN_EPSILON &&
+    doc.flattenResolution === FLATTEN_RESOLUTION
+  );
 }
 
 export function cloneDocument(doc: Document): Document {

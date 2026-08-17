@@ -1,4 +1,5 @@
 import { nodeKey } from './geometry.js'
+import { BRANDMARK_PATH } from './brandmark.js'
 import type { Edge, Node, Preset, Size } from './types.js'
 
 const node = (r: number, c: number, size: Size = 'L'): Node => ({ r, c, size })
@@ -8,6 +9,28 @@ const edge = (a: [number, number], b: [number, number]): Edge => [
 ]
 
 export const PRESETS: Preset[] = [
+  {
+    id: 'brandmark',
+    label: 'Brandmark',
+    nodes: [
+      { ...node(0, 0), radius: 89.55, offsetX: 25.55, offsetY: 25.55 },
+      { ...node(0, 4), radius: 89.55, offsetX: -25.55, offsetY: 25.55 },
+      { ...node(2, 2), radius: 89.55 },
+      { ...node(4, 0), radius: 89.55, offsetX: 25.55, offsetY: -25.55 },
+      { ...node(4, 4), radius: 89.55, offsetX: -25.55, offsetY: -25.55 },
+    ],
+    edges: [
+      edge([0, 0], [0, 4]),
+      edge([0, 4], [4, 4]),
+      edge([4, 0], [4, 4]),
+      edge([2, 2], [4, 0]),
+    ],
+    fullGrid: true,
+    referencePath: BRANDMARK_PATH,
+    tubeFactor: 0.22,
+    gooStd: 9,
+    gooThreshold: 22,
+  },
   {
     id: 'r',
     label: 'R',
@@ -69,7 +92,7 @@ export const PRESETS: Preset[] = [
 ]
 
 /** Presets offered as buttons in the editor; the rest are library-only. */
-export const EDITOR_PRESET_IDS = ['r', 'loop', 'sizes', 'empty']
+export const EDITOR_PRESET_IDS = ['brandmark', 'r', 'loop', 'sizes', 'empty']
 
 export const presetById = (id: string): Preset | undefined =>
   PRESETS.find((preset) => preset.id === id)

@@ -58,6 +58,10 @@ export interface Preset {
   label: string
   nodes: Node[]
   edges: Edge[]
+  /** Allow authoring in the outer ring when this preset opens in the editor. */
+  fullGrid?: boolean
+  /** Exact canonical silhouette used until its geometry controls are changed. */
+  referencePath?: string
   tubeFactor?: number
   gooStd?: number
   gooThreshold?: number

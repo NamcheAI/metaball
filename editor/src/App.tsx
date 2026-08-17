@@ -822,6 +822,12 @@ export default function App() {
     };
   }, [doc, displayGeometry]);
 
+  const canonical2dPath = useMemo(() => {
+    if (displayDoc.mode !== 'metaball') return null;
+    const params = toGenerateParams(displayDoc);
+    return params.preset === 'brandmark' ? generate(params).d : null;
+  }, [displayDoc]);
+
   return (
     <div className="app">
       <Toolbar
@@ -1048,6 +1054,7 @@ export default function App() {
               edgePulls={displayDoc.edgePulls}
               selected={selected}
               selectedEdge={selectedEdge}
+              canonicalPath={canonical2dPath}
               exportPreviewPath={exportPreviewPath}
               onAddNode={addNode}
               onSelect={selectNode}

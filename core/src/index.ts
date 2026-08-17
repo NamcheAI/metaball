@@ -16,6 +16,7 @@
  */
 
 export { generate, generateMaskToken, generateSvg } from './generate.js'
+export { BRANDMARK_PATH } from './brandmark.js'
 export type { GenerateParams, GenerateResult, SvgParams } from './generate.js'
 
 export { layoutFromSeed, rng, seedFrom } from './seed.js'

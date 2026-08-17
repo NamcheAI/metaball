@@ -52,6 +52,10 @@ const svg = generateSvg({ preset: 'r', fill: '#000' })  // standalone <svg>
 const mask = generateMaskToken({ seed: 'namche' })      // CSS mask token
 ```
 
+With no parameters, `generate()` returns the exact current Namche brandmark.
+The `brandmark` preset keeps that approved silhouette as its golden vector and
+also carries the editable five-node graph used by Metaball Studio.
+
 Give it a `preset`, an explicit `nodes`/`edges` spec, or a `seed` — in that
 order of precedence. The same input always produces the same path, so baked
 assets are reproducible and diffs mean something.

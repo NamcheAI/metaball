@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  BRANDMARK_PATH,
   generate,
   generateMaskToken,
   generateSvg,
@@ -8,6 +9,18 @@ import {
   PRESETS,
   VIEWBOX,
 } from '../dist/index.js'
+
+test('the default is the exact current Namche brandmark', () => {
+  const implicit = generate()
+  const explicit = generate({ preset: 'brandmark' })
+
+  assert.equal(implicit.d, BRANDMARK_PATH)
+  assert.equal(explicit.d, BRANDMARK_PATH)
+  assert.equal(explicit.viewBox, `0 0 ${VIEWBOX} ${VIEWBOX}`)
+
+  const box = bbox(pathPoints(explicit.d))
+  assert.deepEqual(box, { x0: 0, x1: VIEWBOX, y0: 0, y1: VIEWBOX })
+})
 
 /** On-curve endpoints of each path command, for geometric comparisons. */
 function pathPoints(d) {

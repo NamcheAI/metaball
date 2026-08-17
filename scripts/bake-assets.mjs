@@ -23,7 +23,7 @@ const outFlag = args.indexOf('--out')
 const outDir = outFlag === -1 ? resolve(repo, 'assets/marks') : resolve(args[outFlag + 1])
 
 /** Marks worth shipping as files. Add here when a mark becomes canonical. */
-const CANONICAL = ['r', 'loop', 'trio', 'quad', 'node']
+const CANONICAL = ['brandmark', 'r', 'loop', 'trio', 'quad', 'node']
 
 await mkdir(outDir, { recursive: true })
 
