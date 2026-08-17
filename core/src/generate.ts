@@ -85,9 +85,13 @@ function resolveSpec(params: GenerateParams): { nodes: Node[]; edges: Edge[] } {
 export function generate(params: GenerateParams = {}): GenerateResult {
   const { nodes, edges } = resolveSpec(params)
   const preset =
-    params.nodes || params.seed !== undefined
+    params.nodes
       ? null
-      : presetById(params.preset ?? PRESETS[0].id) ?? null
+      : params.preset
+        ? presetById(params.preset) ?? null
+        : params.seed !== undefined
+          ? null
+          : PRESETS[0]
 
   const neck = params.neck ?? preset?.tubeFactor ?? DEFAULT_TUBE_FACTOR
   const blur = Math.max(0, params.blur ?? preset?.gooStd ?? DEFAULT_GOO_STD)

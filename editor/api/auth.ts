@@ -36,7 +36,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const source = loginRateLimitKey(req);
-  const attempt = takeLoginAttempt(source);
+  let attempt;
+  try {
+    attempt = await takeLoginAttempt(source);
+  } catch (error) {
+    console.error('Login rate limiter unavailable', error);
+    return res.status(503).end();
+  }
   if (!attempt.allowed) {
     res.setHeader('Retry-After', String(attempt.retryAfterSeconds));
     return res.redirect(302, '/login?error=rate');
@@ -47,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.redirect(302, '/login?error=1');
   }
 
-  resetLoginAttempts(source);
+  await resetLoginAttempts(source);
   const token = await createAuthToken(process.env.AUTH_SECRET!);
   res.setHeader('Set-Cookie', authCookieHeader(token));
   return res.redirect(302, safeRedirectPath(req.query.from));

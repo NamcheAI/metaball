@@ -69,8 +69,9 @@ function rotate2(x: number, y: number, angle: number): { x: number; y: number } 
 }
 
 /**
- * Phase weights over one tide cycle:
- * empty beat → fill inside-out → merge swirl → evaporate outside-in → reform
+ * Phase weights over one tide cycle. The seam sits between a completed reform
+ * and the next merge, so all values stay continuous when the animation wraps:
+ * full beat → merge swirl → evaporate outside-in → empty beat → reform
  */
 export function tidePhasesAtElapsed(elapsedMs: number, periodMs = TIDE_PERIOD_MS) {
   const u = ((elapsedMs % periodMs) + periodMs) % periodMs;
@@ -78,19 +79,20 @@ export function tidePhasesAtElapsed(elapsedMs: number, periodMs = TIDE_PERIOD_MS
   let fill = 0;
   let merge = 0;
   let evaporate = 0;
-  if (t < 0.05) {
-    fill = 0;
-  } else if (t < 0.36) {
-    fill = easeInOutSmooth((t - 0.05) / 0.31);
-  } else if (t < 0.52) {
+  if (t < 0.08) {
     fill = 1;
-    merge = easeInOutSmooth((t - 0.36) / 0.16);
-  } else if (t < 0.82) {
-    fill = 1 - easeInOutSmooth((t - 0.52) / 0.3);
-    evaporate = easeInOutSmooth((t - 0.52) / 0.3);
+  } else if (t < 0.28) {
+    fill = 1;
+    const mergeProgress = (t - 0.08) / 0.2;
+    merge = easeInOutSmooth(1 - Math.abs(mergeProgress * 2 - 1));
+  } else if (t < 0.58) {
+    const evaporationProgress = easeInOutSmooth((t - 0.28) / 0.3);
+    fill = 1 - evaporationProgress;
+    evaporate = evaporationProgress;
+  } else if (t < 0.64) {
+    fill = 0;
   } else {
-    fill = easeInOutSmooth((t - 0.82) / 0.18);
-    evaporate = 0;
+    fill = easeInOutSmooth((t - 0.64) / 0.36);
   }
   return { fill, merge, evaporate, t };
 }

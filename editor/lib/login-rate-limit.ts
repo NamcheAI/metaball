@@ -1,11 +1,16 @@
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 import type { VercelRequest } from './vercel-types.js';
 
-const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
-const MAX_SOURCES = 2048;
+const WINDOW_MS = 15 * 60 * 1000;
 
-type AttemptWindow = { attempts: number; resetAt: number };
-const windows = new Map<string, AttemptWindow>();
+export type SharedLoginRateLimiter = {
+  limit(identifier: string): Promise<{ success: boolean; reset: number; reason?: string }>;
+  resetUsedTokens(identifier: string): Promise<void>;
+};
+
+let sharedLimiter: SharedLoginRateLimiter | undefined;
 
 export type LoginAttempt = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
@@ -24,39 +29,45 @@ export function loginRateLimitKey(req: Pick<VercelRequest, 'headers'>): string {
   );
 }
 
-function prune(now: number): void {
-  for (const [key, window] of windows) {
-    if (window.resetAt <= now) windows.delete(key);
+function sharedLoginRateLimiter(): SharedLoginRateLimiter {
+  if (!sharedLimiter) {
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('Shared login rate limiting is not configured');
+    }
+    sharedLimiter = new Ratelimit({
+      redis: Redis.fromEnv(),
+      limiter: Ratelimit.slidingWindow(MAX_ATTEMPTS, '15 m'),
+      prefix: 'metaball:login',
+      analytics: false,
+      timeout: 3_000,
+    });
   }
-  while (windows.size >= MAX_SOURCES) {
-    const oldest = windows.keys().next().value;
-    if (oldest === undefined) break;
-    windows.delete(oldest);
-  }
+  return sharedLimiter;
 }
 
-/** Reserve one verification attempt before doing any PIN work. */
-export function takeLoginAttempt(key: string, now = Date.now()): LoginAttempt {
-  let window = windows.get(key);
-  if (!window || window.resetAt <= now) {
-    if (windows.size >= MAX_SOURCES) prune(now);
-    window = { attempts: 0, resetAt: now + WINDOW_MS };
-    windows.set(key, window);
-  }
-  if (window.attempts >= MAX_ATTEMPTS) {
+/** Atomically reserve one verification attempt in shared storage before doing PIN work. */
+export async function takeLoginAttempt(
+  key: string,
+  limiter: SharedLoginRateLimiter = sharedLoginRateLimiter(),
+  now = Date.now(),
+): Promise<LoginAttempt> {
+  const result = await limiter.limit(key);
+  // The Upstash SDK normally fails open on its timeout. Authentication must fail closed.
+  if (!result.success || result.reason === 'timeout') {
     return {
       allowed: false,
-      retryAfterSeconds: Math.max(1, Math.ceil((window.resetAt - now) / 1000)),
+      retryAfterSeconds: Math.max(
+        1,
+        Math.ceil(((result.reset || now + WINDOW_MS) - now) / 1000),
+      ),
     };
   }
-  window.attempts += 1;
   return { allowed: true };
 }
 
-export function resetLoginAttempts(key: string): void {
-  windows.delete(key);
-}
-
-export function clearLoginRateLimits(): void {
-  windows.clear();
+export async function resetLoginAttempts(
+  key: string,
+  limiter: SharedLoginRateLimiter = sharedLoginRateLimiter(),
+): Promise<void> {
+  await limiter.resetUsedTokens(key);
 }

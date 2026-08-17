@@ -22,6 +22,13 @@ test('the default is the exact current Namche brandmark', () => {
   assert.deepEqual(box, { x0: 0, x1: VIEWBOX, y0: 0, y1: VIEWBOX })
 })
 
+test('preset geometry and styling take precedence over a supplied seed', () => {
+  const presetOnly = generate({ preset: 'brandmark', backend: 'pure' })
+  const presetAndSeed = generate({ preset: 'brandmark', seed: 'ignored', backend: 'pure' })
+  assert.equal(presetAndSeed.d, presetOnly.d)
+  assert.deepEqual(presetAndSeed.primitives, presetOnly.primitives)
+})
+
 /** On-curve endpoints of each path command, for geometric comparisons. */
 function pathPoints(d) {
   const points = []

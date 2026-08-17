@@ -25,7 +25,7 @@ function buildExportSvg(
   clone.querySelectorAll('.editor-only').forEach((el) => el.remove());
 
   if (opts.markOnly) {
-    clone.querySelectorAll('.grid-layer').forEach((el) => el.remove());
+    clone.querySelectorAll('.grid-layer, .liquid-refract').forEach((el) => el.remove());
   }
 
   // Replace the filtered metaball group with a flattened path.

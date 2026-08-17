@@ -41,8 +41,13 @@ In Project → Settings → Environment Variables, add:
 |------|--------|
 | `AUTH_PIN` | Your PIN (e.g. `4829`) |
 | `AUTH_SECRET` | Long random string (e.g. `openssl rand -hex 32`) |
+| `UPSTASH_REDIS_REST_URL` | REST URL of the shared Upstash Redis database |
+| `UPSTASH_REDIS_REST_TOKEN` | REST token of the shared Upstash Redis database |
 
 Apply to **Production** (and Preview if you want PIN on preview URLs too).
+Create or connect an Upstash Redis database through the Vercel Marketplace first;
+the shared store enforces five PIN attempts per source across all function instances.
+When authentication is enabled, login fails closed if this store is unavailable.
 
 ### 4. Deploy
 
@@ -63,7 +68,7 @@ Copy `.env.example` to `.env.local` and fill in values to test login locally.
 
 - `middleware.ts` — redirects unauthenticated visitors to `/login`.
 - `public/login.html` — PIN form → `POST /api/auth`.
-- `api/auth.ts` — verifies PIN, sets signed cookie.
+- `api/auth.ts` — rate-limits and verifies the PIN, then sets a signed cookie.
 - `api/logout.ts` — clears cookie (linked from the toolbar footer).
 
 **Note:** This is lightweight access control, not enterprise auth. Do not reuse the
