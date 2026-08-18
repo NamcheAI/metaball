@@ -4,7 +4,6 @@ import {
   DEFAULT_FLATTEN_RESOLUTION,
   DEFAULT_GOO_STD,
   DEFAULT_GOO_THRESHOLD,
-  DEFAULT_PRESET_ID,
   DEFAULT_THEME,
   DEFAULT_TUBE_FACTOR,
   EDITOR_PRESET_IDS,
@@ -133,12 +132,13 @@ export const THEME_PRESETS: ThemePreset[] = [
   { id: 'default', label: 'Namche raster', theme: DEFAULT_THEME },
 ];
 
+const DEFAULT_EDITOR_PRESET_ID = 'loop';
 export const PRESETS: Preset[] = EDITOR_PRESET_IDS.flatMap((id) => {
   const preset = CORE_PRESETS.find((candidate) => candidate.id === id);
   return preset ? [preset] : [];
 });
 export const DEFAULT_PRESET =
-  PRESETS.find((preset) => preset.id === DEFAULT_PRESET_ID) ?? PRESETS[0]!;
+  PRESETS.find((preset) => preset.id === DEFAULT_EDITOR_PRESET_ID) ?? PRESETS[0]!;
 
 export const DEFAULT_MATERIAL_PRESET = 'wax';
 
