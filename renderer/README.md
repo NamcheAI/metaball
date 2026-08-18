@@ -1,0 +1,89 @@
+# `@namche/metaball-react`
+
+Embeddable React/Three.js renderer for NAMCHE metaball marks. It defaults to
+the current **Namche Loop**, has no editor state or stylesheet dependency, and
+supports multiple independent instances on one page.
+
+## React / Vite
+
+```tsx
+import { Metaball3D } from '@namche/metaball-react';
+
+export function BrandMark() {
+  return (
+    <Metaball3D
+      preset="loop"
+      material="wax"
+      interactive
+      autoRotate
+      style={{ width: 'min(70vw, 720px)' }}
+    />
+  );
+}
+```
+
+The component supplies a square aspect ratio by default. Pass `width`, `height`
+or `aspectRatio` through `style` to fit the host layout.
+
+## Next.js
+
+Three.js needs a browser canvas, so load the component as a client-only chunk:
+
+```tsx
+'use client';
+
+import dynamic from 'next/dynamic';
+
+const Metaball3D = dynamic(
+  () => import('@namche/metaball-react').then((module) => module.Metaball3D),
+  { ssr: false },
+);
+
+export function BrandMark() {
+  return <Metaball3D preset="loop" material="wax" interactive={false} autoRotate />;
+}
+```
+
+Lazy loading is recommended on any site because Three.js is intentionally not
+part of the initial 2D/page bundle.
+
+## Custom shape
+
+```tsx
+<Metaball3D
+  shape={{
+    nodes: [
+      { r: 1, c: 1, size: 'L' },
+      { r: 3, c: 3, size: 'XL' },
+    ],
+    edges: [['1-1', '3-3']],
+    neck: 0.55,
+    blur: 9,
+    contrast: 22,
+    pinch: 0.2,
+  }}
+/>
+```
+
+`shape` takes precedence over `preset`. Material can be a preset id or Three.js
+`MeshPhysicalMaterialParameters`. The component ref exposes its canvas, mesh
+and `invalidate()` without any global state.
+
+## Peer dependencies
+
+The host application provides React, React DOM, Three.js,
+`@react-three/fiber`, and `@react-three/drei`. This prevents duplicate React or
+Three instances in the Brand site bundle.
+
+The package is prepared for a registry release but is not published by a normal
+repository build. See [`../docs/RELEASING.md`](../docs/RELEASING.md) for the
+trusted-publishing workflow and the software-license decision required before
+the first public release.
+
+## Credits
+
+Original Metaball Studio concept, design direction, and implementation by
+[Michael Marte](https://github.com/fizzybubbele) for
+[Ruhm etc.](https://ruhmetc.com/). Package extraction and engineering are by
+the NAMCHE contributors listed in the repository `AUTHORS.txt` and
+`CONTRIBUTORS.txt`.

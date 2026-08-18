@@ -1,0 +1,54 @@
+name: Release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      npm_tag:
+        description: npm dist-tag
+        required: true
+        default: latest
+        type: choice
+        options:
+          - latest
+          - next
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - run: npm install --global npm@latest
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run release:dry-run
+
+      - name: Publish unpublished package versions
+        env:
+          NPM_TAG: ${{ inputs.npm_tag }}
+          # Required only for the first publish of each new package name. Once
+          # npm trusted publishers are configured, remove this repository secret.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          publish_if_missing() {
+            package_name="$1"
+            package_version=$(node -p "require('./$2/package.json').version")
+            if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
+              echo "$package_name@$package_version already exists; skipping"
+            else
+              npm publish -w "$package_name" --access public --provenance --tag "$NPM_TAG"
+            fi
+          }
+          publish_if_missing @namche/metaball core
+          publish_if_missing @namche/metaball-react renderer

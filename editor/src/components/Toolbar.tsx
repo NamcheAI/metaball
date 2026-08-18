@@ -407,8 +407,12 @@ export default function Toolbar({
     <aside className="toolbar">
       <header className="toolbar-header">
         <div className="brand">
-          <strong>Metaball</strong>
-          <span>Brandmark Editor</span>
+          <img className="namche-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+          <div className="namche-wordmark">
+            <strong>NAMCHE</strong>
+            <span>Frontier AI Initiative</span>
+          </div>
+          <p>Metaball Studio</p>
         </div>
 
         <div className="button-grid">

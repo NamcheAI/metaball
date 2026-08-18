@@ -1,0 +1,94 @@
+# Working on NAMCHE Metaball
+
+This repository is designed for visual, iterative work in Cursor as well as for
+normal TypeScript development. Preserve the visual intent, keep the package
+boundaries below, and make small changes that can be previewed quickly.
+
+## Start here
+
+```bash
+npm install
+npm run dev
+```
+
+The editor opens at `http://localhost:5173`. Before handing off a change, run:
+
+```bash
+npm run typecheck
+npm test
+npm run lint
+npm run build
+```
+
+Do not edit generated `dist/` files. The build creates them.
+
+## Where a change belongs
+
+| You want to change… | Work in… |
+| --- | --- |
+| the 2D mark geometry, presets, rasterization, or SVG output | `core/src/` |
+| the reusable 3D viewer, camera, field, or organic material presets | `renderer/src/` |
+| editor controls, document state, motion, liquid, export, or Blender handoff | `editor/src/` |
+| app colors and typography | `editor/public/theme.css` using tokens from `../design/tokens/` |
+| Blender-agent instructions | `.cursor/skills/` and `editor/docs/` |
+
+Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) before moving code across
+these boundaries.
+
+## Safe visual workflow
+
+1. Run the editor and reproduce the current look before editing.
+2. Change one concern at a time.
+3. Check both 2D and 3D. For 3D, rotate the object and test a narrow viewport.
+4. Test the default **Namche Loop** first, then one asymmetric preset such as R.
+5. If geometry changes, run `npm run bake` and review the SVG diffs visually.
+6. Keep the default viewer light. Liquid, surface sampling, GLB and Blender
+   handoff are Studio features and do not belong in the public renderer.
+
+## Public renderer contract
+
+`@namche/metaball-react` is the component intended for the NAMCHE Brand page.
+Its main API is `Metaball3D`; it must remain independent of editor `Document`
+state and support more than one instance on a page. Never add a module-global
+canvas or mesh handle. Use the component ref (`Metaball3DHandle`) instead.
+
+When changing the renderer:
+
+- preserve the no-CSS-import integration;
+- keep `preset="loop"` as the default;
+- keep React, Three, R3F and Drei as peer dependencies;
+- avoid Studio-only dependencies and post-processing in the default path;
+- update `renderer/README.md` and its public types when props change;
+- test Next.js examples as client components (`dynamic(..., { ssr: false })`).
+
+Registry releases follow [`docs/RELEASING.md`](docs/RELEASING.md). Do not run
+`npm publish` as an incidental part of feature work.
+
+## Editor rules
+
+- The Toolbar edits state; renderers display it. Do not read DOM controls from a
+  renderer.
+- Materials appear only in 3D. Raster colors appear only in 2D.
+- The Namche raster is optional appearance, not part of the exported mark.
+- Expensive overlays stay opt-in and must dispose geometry, materials, timers,
+  animation frames and event listeners on unmount.
+- Keep 3D code lazy-loaded so the 2D editor does not download Three.js.
+- Persisted document changes require a version/migration update in
+  `editor/src/lib/persistence.ts` and tests.
+
+## Brand and credits
+
+The current design tokens live in the sibling `design` repository. Pull its
+`main` branch before a brand-system change. GAIA and semantic role colors are
+UI tokens; OKEANOS/HELIOS and the raster colors are editorial/diagram colors,
+not generic product chrome.
+
+Keep credits in `README.md`, `AUTHORS.txt`, and `CONTRIBUTORS.txt`. Michael
+Marte's design/development credit and Ruhm etc. attribution must not be removed
+when files are moved or rewritten.
+
+## Pull requests
+
+Open implementation work as a draft. Make it ready only after the checks above
+pass. Address review feedback on the current commit, then merge only with green
+required checks and no unresolved actionable threads.

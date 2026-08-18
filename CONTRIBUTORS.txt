@@ -1,0 +1,8 @@
+# People and organizations that have contributed to this repository.
+# Names are listed as: Name or Organization <contact>
+
+Michael Marte <michael@ruhmetc.com>
+Ruhm GmbH <office@ruhmetc.com>
+Jodok Batlogg <jodok@batlogg.com>
+Tashi <tashi@namche.ai>
+BTLG Holding GmbH <jodok@batlogg.com>

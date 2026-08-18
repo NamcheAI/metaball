@@ -1,13 +1,13 @@
 {
-  "name": "@namche/metaball",
-  "version": "1.0.0",
-  "description": "Metaball brandmark engine — deterministic node/edge marks as SVG paths",
+  "name": "@namche/metaball-react",
+  "version": "0.1.0",
+  "description": "Embeddable React and Three.js renderer for NAMCHE metaball marks",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/NamcheAI/metaball.git",
-    "directory": "core"
+    "directory": "renderer"
   },
-  "homepage": "https://github.com/NamcheAI/metaball#readme",
+  "homepage": "https://github.com/NamcheAI/metaball/tree/main/renderer#readme",
   "bugs": "https://github.com/NamcheAI/metaball/issues",
   "contributors": [
     { "name": "Michael Marte", "url": "https://github.com/fizzybubbele" },
@@ -33,10 +33,29 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "lint": "oxlint",
     "test": "npm run build && node --test test/*.test.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@namche/metaball": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.7.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.185.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.7.0",
+    "@types/react": "^19.2.17",
+    "@types/three": "^0.185.3",
+    "oxlint": "^1.71.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "three": "^0.185.1",
+    "typescript": "~6.0.2"
   }
 }

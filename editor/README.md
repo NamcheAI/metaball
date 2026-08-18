@@ -74,7 +74,7 @@ Copy `.env.example` to `.env.local` and fill in values to test login locally.
 - `middleware.ts` — redirects unauthenticated visitors to `/login`.
 - `public/login.html` — PIN form → `POST /api/auth`.
 - `api/auth.ts` — rate-limits and verifies the PIN, then sets a signed cookie.
-- `api/logout.ts` — clears cookie (linked from the toolbar footer).
+- `api/logout.ts` — clears the authentication cookie at `/api/logout`.
 
 **Note:** This is lightweight access control, not enterprise auth. Do not reuse the
 PIN for sensitive data; rotate it if shared widely.
@@ -216,7 +216,7 @@ src/
   App.tsx                    state, history, persistence, keyboard shortcuts
   components/
     MetaballCanvas.tsx       SVG renderer + pointer interactions
-    Metaball3DPreview.tsx    R3F/MarchingCubes 3D showcase renderer
+    Metaball3DPreview.tsx    Studio adapter around public 3D + advanced scenes
     Toolbar.tsx              controls panel
   lib/
     model.ts                 studio document + compatibility adapter to core
@@ -226,15 +226,20 @@ src/
     export.ts                SVG / PNG export + clipboard
     export3d.ts              GLB export of the live isosurface
     exportBlenderHandoff.ts  Zip package for Blender MCP handoff
-    metaball3d.ts            document -> MarchingCubes field adapter
-    materialPresets.ts       PBR stand-in catalog for the 3D view
-    organicMaterials.ts      MeshPhysicalMaterial factory + GLB export params
+    metaball3d.ts            Studio document -> public renderer shape adapter
+    materialPresets.ts       compatibility exports from @namche/metaball-react
+    organicMaterials.ts      compatibility exports for GLB material params
 public/
   handoff-refs/              Look refs for Harz+Moos / Fels / Schaum
 docs/
   blender-materials.md              Canonical high-end materials after GLB import
   blender-texture-transfer-prompt.md  Generic staged prompt for any object/reference pair
 ```
+
+The reusable viewer itself lives in the sibling `renderer/` workspace as
+`@namche/metaball-react`. The editor's ordinary material view consumes it;
+Liquid, surface sampling, and Blender/export hooks stay in the Studio adapter.
+See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 
 ## How the two render modes share one model
 

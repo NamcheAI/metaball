@@ -17,6 +17,10 @@ import {
   OrbitControls,
 } from '@react-three/drei';
 import { Bloom, ChromaticAberration, EffectComposer } from '@react-three/postprocessing';
+import {
+  Metaball3D,
+  type Metaball3DHandle,
+} from '@namche/metaball-react';
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import {
@@ -24,7 +28,7 @@ import {
   setLiveMarchingCubes,
   type Canvas3DHandle,
 } from '../lib/canvas3dHandle';
-import { MC_RESOLUTION, updateMarchingCubesField } from '../lib/metaball3d';
+import { MC_RESOLUTION, toMetaball3DShape, updateMarchingCubesField } from '../lib/metaball3d';
 import { fitPreviewCameraDistance } from '../lib/camera3d';
 import { getMaterialPreset } from '../lib/materialPresets';
 import { createMaterialForPreset } from '../lib/organicMaterials';
@@ -873,6 +877,41 @@ function Scene({ doc, meshRef, canvasHandleRef, fieldDebounceMs }: Props) {
   );
 }
 
+/** Thin Studio adapter around the public viewer for the normal material path. */
+function PublicMaterialPreview({
+  doc,
+  meshRef,
+  canvasHandleRef,
+  fieldDebounceMs = FIELD_DEBOUNCE_MS,
+}: Props) {
+  const publishHandle = useCallback(
+    (handle: Metaball3DHandle | null) => {
+      if (meshRef) meshRef.current = handle?.mesh ?? null;
+      if (canvasHandleRef) {
+        canvasHandleRef.current = handle
+          ? { canvas: handle.canvas, mesh: handle.mesh, invalidate: handle.invalidate }
+          : null;
+      }
+    },
+    [canvasHandleRef, meshRef],
+  );
+
+  const shape = useMemo(() => toMetaball3DShape(doc), [doc]);
+  return (
+    <Metaball3D
+      ref={publishHandle}
+      className="metaball-3d-canvas"
+      style={{ width: '100%', height: '100%', aspectRatio: 'auto' }}
+      shape={shape}
+      material={getMaterialPreset(doc.materialPreset).id}
+      background="#ececf0"
+      quality="balanced"
+      updateDebounceMs={fieldDebounceMs}
+      preserveDrawingBuffer
+    />
+  );
+}
+
 export default function Metaball3DPreview({
   doc,
   meshRef,
@@ -889,6 +928,18 @@ export default function Metaball3DPreview({
       if (canvasHandleRef) canvasHandleRef.current = null;
     };
   }, [canvasHandleRef]);
+
+  if (!isLiquid && !doc.surfaceSamplerEnabled) {
+    return (
+      <PublicMaterialPreview
+        doc={doc}
+        meshRef={meshRef ?? fallbackRef}
+        canvasHandleRef={canvasHandleRef}
+        fieldDebounceMs={fieldDebounceMs}
+        continuous={continuous}
+      />
+    );
+  }
 
   return (
     <Canvas
