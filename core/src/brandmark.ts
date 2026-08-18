@@ -1,12 +1,12 @@
 import { VIEWBOX } from './constants.js'
 
 /**
- * Current TWBD/Namche brandmark, Figma node 71:744.
+ * Approved legacy TWBD/Namche brandmark, Figma node 71:744.
  *
  * The source vector uses a 600 × 600 viewBox. The engine's authoring grid is
  * 584 × 584, so coordinates are scaled uniformly without changing the
- * silhouette. Keeping this canonical path next to the engine makes the
- * default mark exact while its node graph remains editable.
+ * silhouette. Keeping this canonical path next to the engine preserves the
+ * legacy mark exactly while its node graph remains editable.
  */
 const SOURCE_SIZE = 600
 const SOURCE_PATH =
@@ -14,7 +14,6 @@ const SOURCE_PATH =
 
 const scale = VIEWBOX / SOURCE_SIZE
 
-export const BRANDMARK_PATH = SOURCE_PATH.replace(
-  /-?\d*\.?\d+(?:e[-+]?\d+)?/gi,
-  (token) => String(Number((Number(token) * scale).toFixed(4))),
+export const BRANDMARK_PATH = SOURCE_PATH.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (token) =>
+  String(Number((Number(token) * scale).toFixed(4))),
 )

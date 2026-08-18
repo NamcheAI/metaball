@@ -10,12 +10,7 @@ import {
   scalesAtElapsed,
   type GrowthSchedule,
 } from './lib/growth';
-import { applySimmerDisplay } from './lib/simmer';
-import {
-  applyBreakableNecks,
-  applyMotion,
-  type LoopMotionId,
-} from './lib/motion';
+import { applyBreakableNecks, applyMotion, type LoopMotionId } from './lib/motion';
 import {
   canRedo,
   canUndo,
@@ -34,8 +29,8 @@ import {
   clampSurfaceSamplerCount,
   clampSurfaceSamplerPointSize,
   clampSurfaceSamplerSphereSize,
+  applyPresetShape,
   cloneDocument,
-  clonePreset,
   cloneLiquidParams,
   edgeKey,
   effectiveNodeRadius,
@@ -43,6 +38,7 @@ import {
   nodeId,
   omitEdgeRecordKey,
   parseNodeId,
+  presetIdForDocument,
   remapEdgeRecord,
   PRESETS,
   RADIUS_MAX,
@@ -55,13 +51,7 @@ import {
   type Size,
 } from './lib/model';
 import { getLiquidPreset } from './lib/liquidPresets';
-import { getLiquidBackdrop } from './lib/liquidBackdrops';
-import {
-  downloadJson,
-  initialDocument,
-  parseDocumentJson,
-  saveDocument,
-} from './lib/persistence';
+import { downloadJson, initialDocument, parseDocumentJson, saveDocument } from './lib/persistence';
 import type { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { getLiveMarchingCubes, type Canvas3DHandle } from './lib/canvas3dHandle';
 import type { RefImageBytes } from './lib/exportBlenderHandoff';
@@ -71,8 +61,14 @@ import './App.css';
 // bundle for users who only ever use the 2D editor.
 const Metaball3DPreview = lazy(() => import('./components/Metaball3DPreview'));
 
-const SIZE_KEYS: Record<string, Size> = { '1': 'S', '2': 'M', '3': 'L', '4': 'XL' };
+const SIZE_KEYS: Record<string, Size> = {
+  '1': 'S',
+  '2': 'M',
+  '3': 'L',
+  '4': 'XL',
+};
 const EXPORT_PREVIEW_DEBOUNCE_MS = 180;
+const MOTION_FRAME_MS = 1000 / 30;
 
 /** Best-effort file extension for a packed reference image, from its MIME type. */
 function refImageExtension(mime: string): string {
@@ -88,7 +84,6 @@ export default function App() {
   const [selected, setSelected] = useState<NodeId | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('2d');
-  const [showGrid, setShowGrid] = useState(true);
   const [markOnly, setMarkOnly] = useState(false);
   const [pngScale, setPngScale] = useState<PngScale>(4);
   const [showExportPreview, setShowExportPreview] = useState(false);
@@ -99,7 +94,6 @@ export default function App() {
   const [activeMotion, setActiveMotion] = useState<LoopMotionId | null>(null);
   const [motionElapsed, setMotionElapsed] = useState(0);
   const [breakNecks, setBreakNecks] = useState(true);
-  const [simmerElapsed, setSimmerElapsed] = useState(0);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const mesh3dRef = useRef<MarchingCubes | null>(null);
@@ -115,10 +109,11 @@ export default function App() {
   const growingRef = useRef(false);
   const motionRafRef = useRef<number | null>(null);
   const motionStartRef = useRef(0);
+  const motionFrameRef = useRef(0);
   const activeMotionRef = useRef<LoopMotionId | null>(null);
-  const simmerRafRef = useRef<number | null>(null);
 
   const doc = history.present;
+  const activePresetId = useMemo(() => presetIdForDocument(doc), [doc]);
 
   const endScrub = useCallback(() => {
     scrubActive.current = false;
@@ -187,9 +182,11 @@ export default function App() {
     return doc.nodes.find((node) => node.r === r && node.c === c) ?? null;
   })();
 
-  const effectiveEdgeFactor = selectedEdge ? doc.edgeFactors[selectedEdge] ?? doc.tubeFactor : null;
+  const effectiveEdgeFactor = selectedEdge
+    ? (doc.edgeFactors[selectedEdge] ?? doc.tubeFactor)
+    : null;
   const edgeFactorOverridden = selectedEdge ? selectedEdge in doc.edgeFactors : false;
-  const effectiveEdgePull = selectedEdge ? doc.edgePulls[selectedEdge] ?? doc.inwardPull : null;
+  const effectiveEdgePull = selectedEdge ? (doc.edgePulls[selectedEdge] ?? doc.inwardPull) : null;
   const edgePullOverridden = selectedEdge ? selectedEdge in doc.edgePulls : false;
 
   const selectNode = (id: NodeId | null) => {
@@ -239,7 +236,9 @@ export default function App() {
       return {
         ...d,
         nodes: d.nodes.map((n) => (n.r === r && n.c === c ? moved : n)),
-        edges: d.edges.map(([a, b]) => [a === from ? to : a, b === from ? to : b] as [NodeId, NodeId]),
+        edges: d.edges.map(
+          ([a, b]) => [a === from ? to : a, b === from ? to : b] as [NodeId, NodeId],
+        ),
         edgeFactors: remapEdgeFactors(d.edgeFactors, from, to),
         edgePulls: remapEdgeRecord(d.edgePulls, from, to),
       };
@@ -304,12 +303,8 @@ export default function App() {
       removed = exists;
       return {
         ...d,
-        edges: exists
-          ? d.edges.filter(([x, y]) => edgeKey(x, y) !== key)
-          : [...d.edges, [a, b]],
-        edgeFactors: exists
-          ? omitEdgeRecordKey(d.edgeFactors, key)
-          : d.edgeFactors,
+        edges: exists ? d.edges.filter(([x, y]) => edgeKey(x, y) !== key) : [...d.edges, [a, b]],
+        edgeFactors: exists ? omitEdgeRecordKey(d.edgeFactors, key) : d.edgeFactors,
         edgePulls: exists ? omitEdgeRecordKey(d.edgePulls, key) : d.edgePulls,
       };
     });
@@ -318,20 +313,29 @@ export default function App() {
 
   const setEdgeFactor = (value: number) => {
     if (!selectedEdge) return;
-    scrub((d) => ({ ...d, edgeFactors: { ...d.edgeFactors, [selectedEdge]: value } }));
+    scrub((d) => ({
+      ...d,
+      edgeFactors: { ...d.edgeFactors, [selectedEdge]: value },
+    }));
   };
 
   const resetEdgeFactor = () => {
     if (!selectedEdge) return;
     patch((d) => {
       if (!(selectedEdge in d.edgeFactors)) return d;
-      return { ...d, edgeFactors: omitEdgeRecordKey(d.edgeFactors, selectedEdge) };
+      return {
+        ...d,
+        edgeFactors: omitEdgeRecordKey(d.edgeFactors, selectedEdge),
+      };
     });
   };
 
   const setEdgePull = (value: number) => {
     if (!selectedEdge) return;
-    scrub((d) => ({ ...d, edgePulls: { ...d.edgePulls, [selectedEdge]: value } }));
+    scrub((d) => ({
+      ...d,
+      edgePulls: { ...d.edgePulls, [selectedEdge]: value },
+    }));
   };
 
   const resetEdgePull = () => {
@@ -379,7 +383,7 @@ export default function App() {
   const applyPreset = (id: string) => {
     const preset = PRESETS.find((p) => p.id === id);
     if (!preset) return;
-    commit(clonePreset(preset));
+    commit(applyPresetShape(doc, preset));
     setSelected(null);
     setSelectedEdge(null);
   };
@@ -420,8 +424,6 @@ export default function App() {
 
   const buildFlatten = (): FlattenSpec | null => {
     if (doc.mode !== 'metaball') return null;
-    // Keep live SVG filters (chromatic rim) instead of a flat path.
-    if (doc.lookMode === 'liquid') return null;
     return {
       params: toGenerateParams(doc),
       ink: doc.theme.ink,
@@ -433,7 +435,8 @@ export default function App() {
     stopMotion();
     // Defer so the canvas restores authored radii before serializing the SVG.
     requestAnimationFrame(() => {
-      if (svgRef.current) exportSvg(svgRef.current, { markOnly, keepFilters: doc.lookMode === 'liquid' }, buildFlatten());
+      if (svgRef.current)
+        exportSvg(svgRef.current, { markOnly, keepFilters: false }, buildFlatten());
     });
   };
 
@@ -442,12 +445,7 @@ export default function App() {
     stopMotion();
     requestAnimationFrame(() => {
       if (svgRef.current)
-        void exportPng(
-          svgRef.current,
-          { markOnly, keepFilters: doc.lookMode === 'liquid' },
-          buildFlatten(),
-          pngScale,
-        );
+        void exportPng(svgRef.current, { markOnly, keepFilters: false }, buildFlatten(), pngScale);
     });
   };
 
@@ -456,20 +454,14 @@ export default function App() {
     stopMotion();
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
     if (svgRef.current)
-      return copySvgToClipboard(
-        svgRef.current,
-        { markOnly, keepFilters: doc.lookMode === 'liquid' },
-        buildFlatten(),
-      );
+      return copySvgToClipboard(svgRef.current, { markOnly, keepFilters: false }, buildFlatten());
     return false;
   };
 
   const doExportJson = () => downloadJson(doc);
 
   const resolveLiveMesh = () =>
-    mesh3dRef.current ??
-    canvas3dHandleRef.current?.mesh ??
-    getLiveMarchingCubes();
+    mesh3dRef.current ?? canvas3dHandleRef.current?.mesh ?? getLiveMarchingCubes();
 
   const doExportGlb = () => {
     stopGrowth();
@@ -526,8 +518,7 @@ export default function App() {
           }),
         )
         .catch((err: unknown) => {
-          const message =
-            err instanceof Error ? err.message : 'Blender handoff export failed.';
+          const message = err instanceof Error ? err.message : 'Blender handoff export failed.';
           window.alert(message);
         });
     });
@@ -688,13 +679,17 @@ export default function App() {
         window.cancelAnimationFrame(motionRafRef.current);
       }
       motionStartRef.current = performance.now();
+      motionFrameRef.current = 0;
       activeMotionRef.current = id;
       setActiveMotion(id);
       setMotionElapsed(0);
 
       const tick = (now: number) => {
         if (activeMotionRef.current !== id) return;
-        setMotionElapsed(now - motionStartRef.current);
+        if (now - motionFrameRef.current >= MOTION_FRAME_MS) {
+          motionFrameRef.current = now;
+          setMotionElapsed(now - motionStartRef.current);
+        }
         motionRafRef.current = window.requestAnimationFrame(tick);
       };
       motionRafRef.current = window.requestAnimationFrame(tick);
@@ -721,36 +716,11 @@ export default function App() {
     if (activeMotionRef.current) stopMotion();
   }, [doc.nodes, doc.edges, stopGrowth, stopMotion]);
 
-  // Idle simmer while liquid and no playback animation.
-  useEffect(() => {
-    const active = doc.lookMode === 'liquid' && !growing && activeMotion === null;
-    if (!active) {
-      if (simmerRafRef.current !== null) {
-        window.cancelAnimationFrame(simmerRafRef.current);
-        simmerRafRef.current = null;
-      }
-      return;
-    }
-    const start = performance.now();
-    const tick = (now: number) => {
-      setSimmerElapsed(now - start);
-      simmerRafRef.current = window.requestAnimationFrame(tick);
-    };
-    simmerRafRef.current = window.requestAnimationFrame(tick);
-    return () => {
-      if (simmerRafRef.current !== null) {
-        window.cancelAnimationFrame(simmerRafRef.current);
-        simmerRafRef.current = null;
-      }
-    };
-  }, [doc.lookMode, growing, activeMotion]);
-
   useEffect(
     () => () => {
       if (growthRafRef.current !== null) window.cancelAnimationFrame(growthRafRef.current);
       if (growthEndTimerRef.current !== null) window.clearTimeout(growthEndTimerRef.current);
       if (motionRafRef.current !== null) window.cancelAnimationFrame(motionRafRef.current);
-      if (simmerRafRef.current !== null) window.cancelAnimationFrame(simmerRafRef.current);
     },
     [],
   );
@@ -774,22 +744,13 @@ export default function App() {
         evaporate: styled.evaporate ?? 0,
       };
     }
-    if (doc.lookMode === 'liquid') {
-      const simmered = applySimmerDisplay(doc.nodes, doc.edges, simmerElapsed, 1.65);
-      return {
-        nodes: simmered.nodes,
-        edges: simmered.edges,
-        style: null,
-        evaporate: 0,
-      };
-    }
     return {
       nodes: doc.nodes,
       edges: doc.edges,
       style: null,
       evaporate: 0,
     };
-  }, [growing, growthElapsed, activeMotion, motionElapsed, simmerElapsed, breakNecks, doc]);
+  }, [growing, growthElapsed, activeMotion, motionElapsed, breakNecks, doc]);
 
   const displayDoc = useMemo((): Document => {
     const style = displayGeometry.style;
@@ -798,7 +759,6 @@ export default function App() {
       evaporate > 0.01
         ? {
             ...doc.liquidParams,
-            edgeSoftness: Math.min(1, doc.liquidParams.edgeSoftness + evaporate * 0.45),
             bloom: Math.min(1, doc.liquidParams.bloom + evaporate * 0.25),
             opacity: Math.max(0.05, doc.liquidParams.opacity * (1 - evaporate * 0.55)),
           }
@@ -892,8 +852,8 @@ export default function App() {
         theme={doc.theme}
         onThemeChange={scrubTheme}
         onThemeCommit={endScrub}
-        showGrid={showGrid}
-        onShowGridChange={setShowGrid}
+        showGrid={doc.rasterEnabled}
+        onShowGridChange={(v) => updateDocField('rasterEnabled', v)}
         fullGrid={doc.fullGrid}
         onFullGridChange={(v) => updateDocField('fullGrid', v)}
         gooStd={doc.gooStd}
@@ -936,6 +896,7 @@ export default function App() {
         onPngScaleChange={setPngScale}
         canUndo={canUndo(history)}
         canRedo={canRedo(history)}
+        activePresetId={activePresetId}
         onUndo={undo}
         onRedo={redo}
         onApplyPreset={applyPreset}
@@ -998,12 +959,7 @@ export default function App() {
       <main
         className="stage"
         style={{
-          background:
-            view === '2d'
-              ? doc.lookMode === 'liquid'
-                ? getLiquidBackdrop(doc.liquidBackdrop).theme.bg
-                : doc.theme.bg
-              : undefined,
+          background: view === '2d' && doc.rasterEnabled ? doc.theme.bg : undefined,
         }}
       >
         <div className="canvas-wrap">
@@ -1013,7 +969,7 @@ export default function App() {
                 doc={displayDoc}
                 meshRef={mesh3dRef}
                 canvasHandleRef={canvas3dHandleRef}
-                fieldDebounceMs={growing || activeMotion !== null || doc.lookMode === 'liquid' ? 0 : undefined}
+                fieldDebounceMs={growing || activeMotion !== null ? MOTION_FRAME_MS : undefined}
                 continuous={activeMotion !== null || doc.lookMode === 'liquid'}
               />
             </Suspense>
@@ -1023,26 +979,8 @@ export default function App() {
               mode={doc.mode}
               nodes={displayDoc.nodes}
               edges={displayDoc.edges}
-              theme={
-                doc.lookMode === 'liquid'
-                  ? getLiquidBackdrop(doc.liquidBackdrop).theme
-                  : doc.theme
-              }
-              gridPattern={
-                doc.lookMode === 'liquid'
-                  ? getLiquidBackdrop(doc.liquidBackdrop).pattern
-                  : 'cells'
-              }
-              liquidTime={
-                doc.lookMode === 'liquid'
-                  ? activeMotion
-                    ? motionElapsed
-                    : simmerElapsed
-                  : activeMotion
-                    ? motionElapsed
-                    : 0
-              }
-              showGrid={showGrid}
+              theme={doc.theme}
+              showGrid={doc.rasterEnabled}
               fullGrid={doc.fullGrid}
               gooStd={displayDoc.gooStd}
               gooThreshold={doc.gooThreshold}
@@ -1060,7 +998,6 @@ export default function App() {
               onToggleEdge={toggleEdge}
               onRemoveNode={removeNode}
               onMoveNode={moveNode}
-              liquid={doc.lookMode === 'liquid' ? displayDoc.liquidParams : null}
             />
           )}
         </div>

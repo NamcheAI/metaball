@@ -1,4 +1,4 @@
-// Liquid look-mode presets: shared params for 2D SVG filters + 3D MeshPhysicalMaterial.
+// Liquid look-mode presets for the 3D preview and exported material.
 
 export type LookMode = 'material' | 'liquid';
 
@@ -7,17 +7,17 @@ export type CausticDance = 'calm' | 'lively' | 'wild';
 export type LiquidParams = {
   /** 0–1 clearness / light pass-through (reduces body fill coverage). */
   transmission: number;
-  /** 0–1 matte ↔ glossy (3D surface + 2D specular); does not soften the silhouette. */
+  /** 0–1 matte ↔ glossy surface. */
   roughness: number;
   /** 0–1 chromatic rim strength. */
   rimStrength: number;
-  /** 0–1 outer glow / bloom (2D halo + 3D bloom). */
+  /** 0–1 post-processing glow / bloom. */
   bloom: number;
-  /** 0–1 form-edge softness (2D silhouette alpha falloff only). */
+  /** Legacy 2D setting retained so older saved documents still load cleanly. */
   edgeSoftness: number;
   /** Index of refraction ~1.2–1.6. */
   ior: number;
-  /** 0–1 spectral dispersion (3D + 2D fake refract strength). */
+  /** 0–1 spectral dispersion. */
   dispersion: number;
   /** Body tint hex (color only — does not set opacity). */
   tint: string;
@@ -31,14 +31,6 @@ export type LiquidParams = {
   waveStrength: number;
 };
 
-/**
- * 2D body flood opacity: coverage from opacity × transmission.
- * High transmission → more background; tint no longer drives thickness.
- */
-export function liquidBodyFloodOpacity(params: Pick<LiquidParams, 'opacity' | 'transmission'>): number {
-  return clamp01(params.opacity * (1 - 0.82 * params.transmission));
-}
-
 /** Blend hex toward light so tint is a wash, not a solid gel fill. */
 export function mixHexToward(hex: string, toward: string, t: number): string {
   const parse = (h: string) => {
@@ -50,19 +42,8 @@ export function mixHexToward(hex: string, toward: string, t: number): string {
   const a = parse(hex);
   const b = parse(toward);
   const u = clamp01(t);
-  const toHex = (c: number) =>
-    Math.round(c)
-      .toString(16)
-      .padStart(2, '0');
+  const toHex = (c: number) => Math.round(c).toString(16).padStart(2, '0');
   return `#${toHex(a[0] + (b[0] - a[0]) * u)}${toHex(a[1] + (b[1] - a[1]) * u)}${toHex(a[2] + (b[2] - a[2]) * u)}`;
-}
-
-/**
- * 2D body fill color: tint washed toward near-white so frost/prism read as liquid, not paint.
- * Stronger wash when transmission is high.
- */
-export function liquidBodyFloodColor(params: Pick<LiquidParams, 'tint' | 'transmission'>): string {
-  return mixHexToward(params.tint, '#f4f6f8', 0.55 + params.transmission * 0.35);
 }
 
 /** 3D surface color: keep nearly white so attenuation tint carries the hue. */
@@ -71,7 +52,9 @@ export function liquidSurfaceColor(tint: string): string {
 }
 
 /** Volume attenuation distance from opacity + transmission (shorter = stronger tint). */
-export function liquidAttenuationDistance(params: Pick<LiquidParams, 'opacity' | 'transmission'>): number {
+export function liquidAttenuationDistance(
+  params: Pick<LiquidParams, 'opacity' | 'transmission'>,
+): number {
   const density = clamp01(params.opacity * (1 - 0.65 * params.transmission));
   // Longer distances = subtler volume tint (less “colored glass”).
   return 0.55 + (1 - density) * 2.2;
@@ -188,7 +171,10 @@ export const LIQUID_PRESETS: LiquidPreset[] = [
 ];
 
 export function getLiquidPreset(id: string): LiquidPreset {
-  return LIQUID_PRESETS.find((p) => p.id === id) ?? LIQUID_PRESETS.find((p) => p.id === DEFAULT_LIQUID_PRESET)!;
+  return (
+    LIQUID_PRESETS.find((p) => p.id === id) ??
+    LIQUID_PRESETS.find((p) => p.id === DEFAULT_LIQUID_PRESET)!
+  );
 }
 
 export function defaultLiquidParams(): LiquidParams {
@@ -214,7 +200,10 @@ export function normalizeCausticDance(v: unknown, causticStrength: number): Caus
   return 'calm';
 }
 
-export function normalizeLiquidParams(input: Partial<LiquidParams> | undefined, fallback: LiquidParams): LiquidParams {
+export function normalizeLiquidParams(
+  input: Partial<LiquidParams> | undefined,
+  fallback: LiquidParams,
+): LiquidParams {
   const tint =
     typeof input?.tint === 'string' && /^#[0-9a-fA-F]{6}$/.test(input.tint)
       ? input.tint

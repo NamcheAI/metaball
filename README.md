@@ -5,7 +5,7 @@ marks with it.
 
 Nodes sit on a grid and are drawn as circles; connections between them are
 drawn as capsules. The union is blurred and re-thresholded, which pulls
-neighbouring forms into one organic shape — *"vom Schachbrett zum Netzwerk"*
+neighbouring forms into one organic shape — _"vom Schachbrett zum Netzwerk"_
 expressed as a computation.
 
 ```bash
@@ -17,12 +17,12 @@ npm run lint     # editor
 
 ## What is where
 
-| Path | What it is |
-| --- | --- |
-| `core/` | `@namche/metaball` — the engine. Dependency-free, deterministic, TypeScript. |
-| `editor/` | Metaball Studio: 2D authoring, live 3D, motion, materials, and export. |
-| `assets/marks/` | The canonical marks, baked to SVG + JSON. |
-| `scripts/` | `bake-assets.mjs`, `sync-design.mjs`. |
+| Path            | What it is                                                                   |
+| --------------- | ---------------------------------------------------------------------------- |
+| `core/`         | `@namche/metaball` — the engine. Dependency-free, deterministic, TypeScript. |
+| `editor/`       | Metaball Studio: 2D authoring, live 3D, motion, materials, and export.       |
+| `assets/marks/` | The canonical marks, baked to SVG + JSON.                                    |
+| `scripts/`      | `bake-assets.mjs`, `sync-design.mjs`.                                        |
 
 The editor imports the engine — there is one implementation of the geometry,
 not two. A change to how marks are drawn shows up in the editor, in the baked
@@ -45,15 +45,15 @@ map back through `@namche/metaball`.
 ## Using the engine
 
 ```js
-import { generate, generateSvg, generateMaskToken } from '@namche/metaball'
+import { generate, generateSvg, generateMaskToken } from "@namche/metaball";
 
-const { d, viewBox } = generate({ preset: 'trio' })     // path data
-const svg = generateSvg({ preset: 'r', fill: '#000' })  // standalone <svg>
-const mask = generateMaskToken({ seed: 'namche' })      // CSS mask token
+const { d, viewBox } = generate({ preset: "trio" }); // path data
+const svg = generateSvg({ preset: "r", fill: "#000" }); // standalone <svg>
+const mask = generateMaskToken({ seed: "namche" }); // CSS mask token
 ```
 
-With no parameters, `generate()` returns the exact current Namche brandmark.
-The `brandmark` preset keeps that approved silhouette as its golden vector and
+With no parameters, `generate()` returns the current Namche `loop` mark.
+The legacy `brandmark` preset keeps its approved silhouette as a golden vector and
 also carries the editable five-node graph used by Metaball Studio.
 
 Give it a `preset`, an explicit `nodes`/`edges` spec, or a `seed` — in that
@@ -61,23 +61,26 @@ order of precedence. The same input always produces the same path, so baked
 assets are reproducible and diffs mean something.
 
 ```js
-generate({ seed: 'namche', count: 5, extraEdges: 1 })
+generate({ seed: "namche", count: 5, extraEdges: 1 });
 generate({
-  nodes: [{ r: 1, c: 1, size: 'L' }, { r: 3, c: 3, size: 'XL' }],
-  edges: [['1-1', '3-3']],
-})
+  nodes: [
+    { r: 1, c: 1, size: "L" },
+    { r: 3, c: 3, size: "XL" },
+  ],
+  edges: [["1-1", "3-3"]],
+});
 ```
 
 ### The parameters that shape a mark
 
-| Param | Default | What it does |
-| --- | --- | --- |
-| `neck` | `0.55` | Capsule thickness before blur, relative to the smaller node |
-| `blur` | `9` | Fusion width — how far forms reach for each other |
-| `contrast` | `22` | Alpha cutoff; higher = sharper waist, tighter neck |
-| `pinch` | `0` | `0` barbell tubes … `1` pinched metaball |
-| `detail` | `0.9` | Simplification tolerance, in view units |
-| `resolution` | `1` | Supersampling, 1–4. Adds contour detail, not size |
+| Param        | Default | What it does                                                |
+| ------------ | ------- | ----------------------------------------------------------- |
+| `neck`       | `0.55`  | Capsule thickness before blur, relative to the smaller node |
+| `blur`       | `9`     | Fusion width — how far forms reach for each other           |
+| `contrast`   | `22`    | Alpha cutoff; higher = sharper waist, tighter neck          |
+| `pinch`      | `0`     | `0` barbell tubes … `1` pinched metaball                    |
+| `detail`     | `0.9`   | Simplification tolerance, in view units                     |
+| `resolution` | `1`     | Supersampling, 1–4. Adds contour detail, not size           |
 
 `pinch` thins the tubes, so blur is boosted to compensate
 (`blur · (1 + pinch · 0.65)`) and the forms still fuse.

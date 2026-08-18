@@ -5,7 +5,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export type ExportOptions = {
   markOnly: boolean; // strip the pink/blue grid + dots, transparent background
-  /** Keep SVG filters (e.g. Prism chromatic rim) instead of stripping them. */
+  /** Keep the metaball filter instead of stripping it. */
   keepFilters?: boolean;
 };
 
@@ -25,7 +25,7 @@ function buildExportSvg(
   clone.querySelectorAll('.editor-only').forEach((el) => el.remove());
 
   if (opts.markOnly) {
-    clone.querySelectorAll('.grid-layer, .liquid-refract').forEach((el) => el.remove());
+    clone.querySelectorAll('.grid-layer').forEach((el) => el.remove());
   }
 
   // Replace the filtered metaball group with a flattened path.
@@ -44,7 +44,7 @@ function buildExportSvg(
   }
 
   // Drop unused filter defs after flatten / filter strip.
-  clone.querySelectorAll('filter#goo, filter#prismRim').forEach((el) => {
+  clone.querySelectorAll('filter#goo').forEach((el) => {
     const id = el.getAttribute('id');
     if (!id) return;
     if (!clone.querySelector(`[filter="url(#${id})"]`)) el.remove();

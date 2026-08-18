@@ -7,8 +7,9 @@ import {
   SURFACE_SAMPLER_COUNT_MAX,
   TUBE_FACTOR_MIN,
   edgeKey,
+  presetIdForDocument,
 } from '../src/lib/model';
-import { normalizeDocument, parseDocumentJson } from '../src/lib/persistence';
+import { initialDocument, normalizeDocument, parseDocumentJson } from '../src/lib/persistence';
 
 test('import sanitizes geometry, styles, and studio settings', () => {
   const doc = normalizeDocument({
@@ -51,4 +52,17 @@ test('individual node overrides are clamped', () => {
 
 test('invalid JSON still fails loudly for the UI error path', () => {
   assert.throws(() => parseDocumentJson('{'));
+});
+
+test('new documents use Namche Loop, raster on, and opt-in surface sampling', () => {
+  const doc = initialDocument();
+  assert.equal(presetIdForDocument(doc), 'loop');
+  assert.equal(doc.rasterEnabled, true);
+  assert.equal(doc.surfaceSamplerEnabled, false);
+  assert.equal(doc.fullGrid, false);
+});
+
+test('raster visibility survives document normalization', () => {
+  assert.equal(normalizeDocument({ rasterEnabled: false }).rasterEnabled, false);
+  assert.equal(normalizeDocument({}).rasterEnabled, true);
 });

@@ -4,6 +4,7 @@ import {
   DEFAULT_FLATTEN_RESOLUTION,
   DEFAULT_GOO_STD,
   DEFAULT_GOO_THRESHOLD,
+  DEFAULT_PRESET_ID,
   DEFAULT_THEME,
   DEFAULT_TUBE_FACTOR,
   EDITOR_PRESET_IDS,
@@ -132,14 +133,17 @@ export const THEME_PRESETS: ThemePreset[] = [
   { id: 'default', label: 'Namche raster', theme: DEFAULT_THEME },
 ];
 
-export const PRESETS: Preset[] = CORE_PRESETS.filter((preset) =>
-  EDITOR_PRESET_IDS.includes(preset.id),
-);
+export const PRESETS: Preset[] = EDITOR_PRESET_IDS.flatMap((id) => {
+  const preset = CORE_PRESETS.find((candidate) => candidate.id === id);
+  return preset ? [preset] : [];
+});
+export const DEFAULT_PRESET =
+  PRESETS.find((preset) => preset.id === DEFAULT_PRESET_ID) ?? PRESETS[0]!;
 
 export const DEFAULT_MATERIAL_PRESET = 'wax';
 
 export type SurfaceSamplerMode = 'points' | 'spheres' | 'both';
-export const SURFACE_SAMPLER_ENABLED = true;
+export const SURFACE_SAMPLER_ENABLED = false;
 export const SURFACE_SAMPLER_MODE: SurfaceSamplerMode = 'both';
 export const SURFACE_SAMPLER_COUNT = 3000;
 export const SURFACE_SAMPLER_COUNT_MIN = 100;
@@ -181,7 +185,7 @@ export type Document = EditorDoc & {
   surfaceSamplerAnimate: boolean;
 };
 
-export const DOCUMENT_VERSION = 9;
+export const DOCUMENT_VERSION = 10;
 export type StoredDocument = Document & { version: number };
 
 export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []): Document {
@@ -192,6 +196,7 @@ export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []
     edgePulls: {},
     mode: 'metaball',
     theme: { ...DEFAULT_THEME },
+    rasterEnabled: true,
     gooStd: GOO_STD,
     gooThreshold: GOO_THRESHOLD,
     tubeFactor: TUBE_RADIUS_FACTOR,
@@ -226,6 +231,25 @@ export function clonePreset(preset: Preset): Document {
   return doc;
 }
 
+/** Apply a shape preset without resetting raster, material, or other studio preferences. */
+export function applyPresetShape(doc: Document, preset: Preset): Document {
+  const shape = clonePreset(preset);
+  return {
+    ...cloneDocument(doc),
+    nodes: shape.nodes,
+    edges: shape.edges,
+    edgeFactors: shape.edgeFactors,
+    edgePulls: shape.edgePulls,
+    gooStd: shape.gooStd,
+    gooThreshold: shape.gooThreshold,
+    tubeFactor: shape.tubeFactor,
+    inwardPull: shape.inwardPull,
+    fullGrid: shape.fullGrid,
+    flattenEpsilon: shape.flattenEpsilon,
+    flattenResolution: shape.flattenResolution,
+  };
+}
+
 const sameNode = (a: GridNode, b: GridNode): boolean =>
   a.r === b.r &&
   a.c === b.c &&
@@ -234,10 +258,8 @@ const sameNode = (a: GridNode, b: GridNode): boolean =>
   a.offsetX === b.offsetX &&
   a.offsetY === b.offsetY;
 
-/** True while a document still represents the untouched canonical brandmark. */
-export function isBrandmarkDocument(doc: Document): boolean {
-  const preset = CORE_PRESETS.find((candidate) => candidate.id === 'brandmark');
-  if (!preset || doc.nodes.length !== preset.nodes.length || doc.edges.length !== preset.edges.length) {
+function matchesPreset(doc: Document, preset: Preset): boolean {
+  if (doc.nodes.length !== preset.nodes.length || doc.edges.length !== preset.edges.length) {
     return false;
   }
   const nodes = [...doc.nodes].sort((a, b) => nodeId(a.r, a.c).localeCompare(nodeId(b.r, b.c)));
@@ -255,9 +277,15 @@ export function isBrandmarkDocument(doc: Document): boolean {
     doc.gooStd === (preset.gooStd ?? GOO_STD) &&
     doc.gooThreshold === (preset.gooThreshold ?? GOO_THRESHOLD) &&
     doc.inwardPull === INWARD_PULL &&
+    doc.fullGrid === (preset.fullGrid ?? false) &&
     doc.flattenEpsilon === FLATTEN_EPSILON &&
     doc.flattenResolution === FLATTEN_RESOLUTION
   );
+}
+
+/** The untouched shape preset represented by this document, if any. */
+export function presetIdForDocument(doc: Document): string | null {
+  return CORE_PRESETS.find((preset) => matchesPreset(doc, preset))?.id ?? null;
 }
 
 export function cloneDocument(doc: Document): Document {
@@ -296,8 +324,5 @@ export const filterEdgeRecordByNode = <T>(
 ): Record<string, T> =>
   Object.fromEntries(Object.entries(record).filter(([key]) => !key.split('|').includes(id)));
 
-export const omitEdgeRecordKey = <T>(
-  record: Record<string, T>,
-  key: string,
-): Record<string, T> =>
+export const omitEdgeRecordKey = <T>(record: Record<string, T>, key: string): Record<string, T> =>
   Object.fromEntries(Object.entries(record).filter(([entry]) => entry !== key));

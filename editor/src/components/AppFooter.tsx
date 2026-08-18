@@ -2,9 +2,8 @@ export default function AppFooter() {
   return (
     <footer className="app-footer">
       <p className="app-footer-hint">
-        Click a cell to add a node. Drag between nodes to connect. Select a connection, then Style →
-        Customize selected connection for neck/pinch. Right-click removes. Cmd/Ctrl+Z undoes. Keys
-        1–4 set S/M/L/XL.
+        Graph: click a cell to add, drag between nodes to connect, right-click to remove. Form:
+        style and export the mark; a selected connection can override neck/pinch. Cmd/Ctrl+Z undoes.
       </p>
 
       <div className="app-footer-links">

@@ -1,5 +1,5 @@
 import type { GenerateParams } from '@namche/metaball';
-import { isBrandmarkDocument, type Document } from './model';
+import { presetIdForDocument, type Document } from './model';
 
 /** Map the extended studio document onto the canonical 2D engine API. */
 export function toGenerateParams(
@@ -17,7 +17,8 @@ export function toGenerateParams(
     | 'flattenResolution'
   >,
 ): GenerateParams {
-  if (isBrandmarkDocument(doc as Document)) return { preset: 'brandmark' };
+  const preset = presetIdForDocument(doc as Document);
+  if (preset) return { preset };
   return {
     nodes: doc.nodes,
     edges: doc.edges,
