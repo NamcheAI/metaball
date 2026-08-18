@@ -1,5 +1,6 @@
 import {
   DOCUMENT_VERSION,
+  DEFAULT_PRESET,
   FLATTEN_EPSILON_MAX,
   FLATTEN_EPSILON_MIN,
   FLATTEN_RESOLUTION_MAX,
@@ -11,7 +12,6 @@ import {
   INWARD_PULL_MAX,
   INWARD_PULL_MIN,
   OFFSET_MAX,
-  PRESETS,
   RADIUS_MAX,
   RADIUS_MIN,
   TUBE_FACTOR_MAX,
@@ -127,7 +127,10 @@ function sanitizeTheme(value: unknown, fallback: Theme): Theme {
 
 export function saveDocument(doc: Document): void {
   try {
-    const stored: StoredDocument = { ...cloneDocument(doc), version: DOCUMENT_VERSION };
+    const stored: StoredDocument = {
+      ...cloneDocument(doc),
+      version: DOCUMENT_VERSION,
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch {
     // Storage can be unavailable in private contexts or full.
@@ -181,14 +184,11 @@ export function normalizeDocument(input: unknown): Document {
       TUBE_FACTOR_MIN,
       TUBE_FACTOR_MAX,
     ),
-    edgePulls: sanitizeEdgeRecord(
-      input.edgePulls,
-      validEdges,
-      INWARD_PULL_MIN,
-      INWARD_PULL_MAX,
-    ),
+    edgePulls: sanitizeEdgeRecord(input.edgePulls, validEdges, INWARD_PULL_MIN, INWARD_PULL_MAX),
     mode: input.mode === 'graph' ? 'graph' : 'metaball',
     theme: sanitizeTheme(input.theme, base.theme),
+    rasterEnabled:
+      typeof input.rasterEnabled === 'boolean' ? input.rasterEnabled : base.rasterEnabled,
     gooStd: finiteOr(input.gooStd, base.gooStd, GOO_STD_MIN, GOO_STD_MAX),
     gooThreshold: finiteOr(
       input.gooThreshold,
@@ -196,18 +196,8 @@ export function normalizeDocument(input: unknown): Document {
       GOO_THRESHOLD_MIN,
       GOO_THRESHOLD_MAX,
     ),
-    tubeFactor: finiteOr(
-      input.tubeFactor,
-      base.tubeFactor,
-      TUBE_FACTOR_MIN,
-      TUBE_FACTOR_MAX,
-    ),
-    inwardPull: finiteOr(
-      input.inwardPull,
-      base.inwardPull,
-      INWARD_PULL_MIN,
-      INWARD_PULL_MAX,
-    ),
+    tubeFactor: finiteOr(input.tubeFactor, base.tubeFactor, TUBE_FACTOR_MIN, TUBE_FACTOR_MAX),
+    inwardPull: finiteOr(input.inwardPull, base.inwardPull, INWARD_PULL_MIN, INWARD_PULL_MAX),
     fullGrid: input.fullGrid === true,
     flattenEpsilon: finiteOr(
       input.flattenEpsilon,
@@ -254,11 +244,14 @@ export function normalizeDocument(input: unknown): Document {
 }
 
 export function initialDocument(): Document {
-  return loadDocument() ?? clonePreset(PRESETS[0]);
+  return loadDocument() ?? clonePreset(DEFAULT_PRESET);
 }
 
 export function serializeDocument(doc: Document): string {
-  const stored: StoredDocument = { ...cloneDocument(doc), version: DOCUMENT_VERSION };
+  const stored: StoredDocument = {
+    ...cloneDocument(doc),
+    version: DOCUMENT_VERSION,
+  };
   return JSON.stringify(stored, null, 2);
 }
 

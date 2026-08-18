@@ -24,7 +24,7 @@ export type TideDisplay = {
   gooStd: number;
   edgeFactors: Record<string, number>;
   edgePulls: Record<string, number>;
-  /** 0–1 extra liquid look modulation (edge soft / bloom hint for canvas). */
+  /** 0–1 evaporation progress used to modulate the 3D liquid material. */
   evaporate: number;
 };
 
@@ -103,13 +103,7 @@ export function tidePhasesAtElapsed(elapsedMs: number, periodMs = TIDE_PERIOD_MS
 export function applyTideDisplay(
   doc: Pick<
     Document,
-    | 'nodes'
-    | 'edges'
-    | 'tubeFactor'
-    | 'inwardPull'
-    | 'gooStd'
-    | 'edgeFactors'
-    | 'edgePulls'
+    'nodes' | 'edges' | 'tubeFactor' | 'inwardPull' | 'gooStd' | 'edgeFactors' | 'edgePulls'
   >,
   elapsedMs: number,
   periodMs = TIDE_PERIOD_MS,
@@ -149,7 +143,9 @@ export function applyTideDisplay(
     // Inside-out fill: center first.
     const fillGate = easeInOutSmooth(clamp((fill - norm * 0.55 - phase * 0.08) / 0.45, 0, 1));
     // Outside-in evaporate: rim first.
-    const evapGate = easeInOutSmooth(clamp((evaporate - (1 - norm) * 0.5 - phase * 0.1) / 0.5, 0, 1));
+    const evapGate = easeInOutSmooth(
+      clamp((evaporate - (1 - norm) * 0.5 - phase * 0.1) / 0.5, 0, 1),
+    );
     const scale = clamp(fillGate * (1 - evapGate * 0.98), 0, 1.15);
     const base = effectiveNodeRadius(node);
     // Slight swell during merge.

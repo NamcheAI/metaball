@@ -7,7 +7,7 @@ import {
   VIEWBOX,
 } from './constants.js'
 import { clamp, effectiveBlur } from './geometry.js'
-import { PRESETS, presetById } from './presets.js'
+import { DEFAULT_PRESET_ID, PRESETS, presetById } from './presets.js'
 import { buildRenderData } from './primitives.js'
 import { rasterizeCanvas } from './raster-canvas.js'
 import { blurField, rasterize } from './raster-pure.js'
@@ -72,7 +72,8 @@ function resolveSpec(params: GenerateParams): { nodes: Node[]; edges: Edge[] } {
     return { nodes: preset.nodes, edges: preset.edges }
   }
   if (params.seed !== undefined) return layoutFromSeed(params)
-  return { nodes: PRESETS[0].nodes, edges: PRESETS[0].edges }
+  const preset = presetById(DEFAULT_PRESET_ID)!
+  return { nodes: preset.nodes, edges: preset.edges }
 }
 
 /**
@@ -84,14 +85,13 @@ function resolveSpec(params: GenerateParams): { nodes: Node[]; edges: Edge[] } {
  */
 export function generate(params: GenerateParams = {}): GenerateResult {
   const { nodes, edges } = resolveSpec(params)
-  const preset =
-    params.nodes
-      ? null
-      : params.preset
-        ? presetById(params.preset) ?? null
-        : params.seed !== undefined
-          ? null
-          : PRESETS[0]
+  const preset = params.nodes
+    ? null
+    : params.preset
+      ? (presetById(params.preset) ?? null)
+      : params.seed !== undefined
+        ? null
+        : presetById(DEFAULT_PRESET_ID)!
 
   const neck = params.neck ?? preset?.tubeFactor ?? DEFAULT_TUBE_FACTOR
   const blur = Math.max(0, params.blur ?? preset?.gooStd ?? DEFAULT_GOO_STD)

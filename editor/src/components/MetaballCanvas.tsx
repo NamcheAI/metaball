@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useMemo, useRef, useState } from 'react';
 import {
   CELL,
   COLS,
@@ -25,18 +25,12 @@ import {
   type NodeId,
   type Theme,
 } from '../lib/model';
-import type { LiquidParams } from '../lib/liquidPresets';
-import { liquidBodyFloodColor, liquidBodyFloodOpacity } from '../lib/liquidPresets';
 
 type Props = {
   mode: Mode;
   nodes: GridNode[];
   edges: Edge[];
   theme: Theme;
-  /** When set (liquid mode), drives cell fill pattern: cells | checker | stripes. */
-  gridPattern?: 'cells' | 'checker' | 'stripes';
-  /** Wall-clock ms for animated internal refraction (liquid idle / simmer). */
-  liquidTime?: number;
   showGrid: boolean;
   fullGrid: boolean;
   gooStd: number;
@@ -55,8 +49,6 @@ type Props = {
   onToggleEdge: (a: NodeId, b: NodeId) => void;
   onRemoveNode: (id: NodeId) => void;
   onMoveNode: (from: NodeId, toR: number, toC: number) => void;
-  /** When set, soft translucent body + chromatic rim SVG filter. */
-  liquid?: LiquidParams | null;
 };
 
 const ACCENT = '#111';
@@ -76,8 +68,6 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
     nodes,
     edges,
     theme,
-    gridPattern = 'cells',
-    liquidTime = 0,
     showGrid,
     fullGrid,
     gooStd,
@@ -96,39 +86,10 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
     onToggleEdge,
     onRemoveNode,
     onMoveNode,
-    liquid = null,
   },
   ref,
 ) {
-  const isLiquid = mode === 'metaball' && liquid != null;
-  const markFill = isLiquid ? '#ffffff' : theme.ink;
-  const rim = isLiquid ? liquid.rimStrength : 0;
-  const bloom = isLiquid ? liquid.bloom : 0;
-  const bodyAlpha = isLiquid ? liquidBodyFloodOpacity(liquid) : 1;
-  const bodyColor = isLiquid ? liquidBodyFloodColor(liquid) : theme.ink;
-  // Form silhouette softness — independent of outer glow.
-  const edgeStd = isLiquid ? 0.2 + liquid.edgeSoftness * 3.5 : 0.2;
-  // Outer chromatic halo width — independent of edge.
-  const rimBlur = isLiquid ? 6 + bloom * 14 : 10;
-  // Fake refraction: displace strength from IOR + dispersion + living internal flow.
-  const liquidT = liquidTime / 1000;
-  const refractPulse = isLiquid ? 0.85 + 0.15 * Math.sin(liquidT * 1.4) : 1;
-  const refractScale = isLiquid
-    ? (3 + (liquid.ior - 1.2) * 28 + liquid.dispersion * 10) * refractPulse
-    : 0;
-  const turbFx =
-    isLiquid
-      ? 0.014 + liquid.dispersion * 0.018 + 0.006 * Math.sin(liquidT * 0.9)
-      : 0.02;
-  const turbFy =
-    isLiquid
-      ? 0.012 + liquid.dispersion * 0.016 + 0.005 * Math.cos(liquidT * 1.1)
-      : 0.02;
-  const chromaDx = isLiquid
-    ? 1.2 + liquid.dispersion * 2 + Math.sin(liquidT * 1.6) * 0.8
-    : 0;
-  // Slightly snappier goo threshold in liquid so the silhouette reads before the rim filter.
-  const effectiveGooThreshold = isLiquid ? gooThreshold * 1.08 : gooThreshold;
+  const markFill = theme.ink;
   const innerRef = useRef<SVGSVGElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -202,8 +163,7 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
     if (!current || !downPos.current) return;
     const p = toSvg(e.clientX, e.clientY);
     const moved =
-      Math.hypot(e.clientX - downPos.current.x, e.clientY - downPos.current.y) >
-      CONNECT_THRESHOLD;
+      Math.hypot(e.clientX - downPos.current.x, e.clientY - downPos.current.y) > CONNECT_THRESHOLD;
     updateDrag({ ...current, x: p.x, y: p.y, moved: current.moved || moved });
   };
 
@@ -237,6 +197,7 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
   const startCenter = startNode ? nodePosition(startNode) : null;
 
   const gridEls: React.ReactNode[] = [];
+  const guideEls: React.ReactNode[] = [];
   const hitEls: React.ReactNode[] = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -245,32 +206,13 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
       const editable = isEditableCell(r, c, fullGrid);
       const hasNode = nodeByCell.has(nodeId(r, c));
       if (showGrid) {
-        const cellFill =
-          gridPattern === 'checker'
-            ? (r + c) % 2 === 0
-              ? theme.pink
-              : theme.blue
-            : gridPattern === 'stripes'
-              ? c % 2 === 0
-                ? theme.pink
-                : theme.blue
-              : inner
-                ? theme.blue
-                : theme.pink;
+        const cellFill = inner ? theme.blue : theme.pink;
         gridEls.push(
-          <rect
-            key={`bg-${r}-${c}`}
-            x={x}
-            y={y}
-            width={w}
-            height={h}
-            rx={gridPattern === 'cells' ? 2 : 0}
-            fill={cellFill}
-          />,
+          <rect key={`bg-${r}-${c}`} x={x} y={y} width={w} height={h} rx={2} fill={cellFill} />,
         );
         if (editable && !hasNode) {
           const { cx, cy } = cellCenter(r, c);
-          gridEls.push(
+          guideEls.push(
             <circle key={`dot-${r}-${c}`} cx={cx} cy={cy} r={DOT_RADIUS} fill={theme.ink} />,
           );
         }
@@ -379,7 +321,14 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
       }}
     >
       <defs>
-        <filter id="goo" x="-40%" y="-40%" width="180%" height="180%" colorInterpolationFilters="sRGB">
+        <filter
+          id="goo"
+          x="-40%"
+          y="-40%"
+          width="180%"
+          height="180%"
+          colorInterpolationFilters="sRGB"
+        >
           <feGaussianBlur
             in="SourceGraphic"
             stdDeviation={inwardGooStd(gooStd, inwardPull)}
@@ -388,174 +337,25 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
           <feColorMatrix
             in="blur"
             mode="matrix"
-            values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${effectiveGooThreshold} ${-effectiveGooThreshold / 2}`}
+            values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${gooThreshold} ${-gooThreshold / 2}`}
           />
         </filter>
-        {isLiquid && liquid && (
-          <>
-            <filter
-              id="liquidRefract"
-              x="-20%"
-              y="-20%"
-              width="140%"
-              height="140%"
-              colorInterpolationFilters="sRGB"
-            >
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency={`${turbFx} ${turbFy}`}
-                numOctaves={3}
-                seed={2}
-                result="noise"
-              />
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="noise"
-                scale={refractScale}
-                xChannelSelector="R"
-                yChannelSelector="G"
-                result="displaced"
-              />
-              {/* Mild chromatic split of the refracted backdrop — drifts with flow. */}
-              <feOffset in="displaced" dx={-chromaDx} dy={Math.sin(liquidT * 1.2) * 0.6} result="cOff" />
-              <feOffset in="displaced" dx={chromaDx} dy={0.4 + Math.cos(liquidT * 1.1) * 0.5} result="mOff" />
-              <feColorMatrix
-                in="cOff"
-                type="matrix"
-                values="1 0 0 0 0  0 0.2 0 0 0  0 0 0.35 0 0  0 0 0 0.55 0"
-                result="cCh"
-              />
-              <feColorMatrix
-                in="mOff"
-                type="matrix"
-                values="0.2 0 0 0 0  0 1 0 0 0  0 0 0.4 0 0  0 0 0 0.45 0"
-                result="mCh"
-              />
-              <feBlend in="cCh" in2="displaced" mode="screen" result="cm" />
-              <feBlend in="mCh" in2="cm" mode="screen" />
-            </filter>
-            <mask id="liquidMask" maskUnits="userSpaceOnUse">
-              <g filter="url(#goo)">
-                {markShapes?.capsules.map((cap, i) => (
-                  <line
-                    key={`mask-edge-${i}`}
-                    x1={cap.x1}
-                    y1={cap.y1}
-                    x2={cap.x2}
-                    y2={cap.y2}
-                    stroke="#fff"
-                    strokeWidth={cap.r * 2}
-                    strokeLinecap="round"
-                  />
-                ))}
-                {markShapes?.circles.map((c, i) => (
-                  <circle key={`mask-node-${i}`} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />
-                ))}
-              </g>
-            </mask>
-            <filter
-              id="prismRim"
-              x="-55%"
-              y="-55%"
-              width="210%"
-              height="210%"
-              colorInterpolationFilters="sRGB"
-            >
-              {/* Outer chromatic light-band — warm left / cool right (video). */}
-              <feMorphology in="SourceAlpha" operator="dilate" radius={0.6 + bloom * 1.2} result="glowCore" />
-              <feGaussianBlur in="glowCore" stdDeviation={Math.max(3.5, rimBlur * 0.55)} result="rimBlur" />
-
-              {/* Warm arc (left / top-left) — orange → pink. */}
-              <feOffset in="rimBlur" dx={-7} dy={-4} result="warmOff" />
-              <feFlood floodColor="#ff9a3c" floodOpacity={0.95 * rim} result="warmFlood" />
-              <feComposite in="warmFlood" in2="warmOff" operator="in" result="warm" />
-
-              <feOffset in="rimBlur" dx={-4} dy={2} result="magOff" />
-              <feFlood floodColor="#ff3eb5" floodOpacity={0.9 * rim} result="magFlood" />
-              <feComposite in="magFlood" in2="magOff" operator="in" result="mag" />
-
-              {/* Cool arc (right) — cyan / white. */}
-              <feOffset in="rimBlur" dx={7} dy={-1} result="cyanOff" />
-              <feFlood floodColor="#5ef0ff" floodOpacity={1 * rim} result="cyanFlood" />
-              <feComposite in="cyanFlood" in2="cyanOff" operator="in" result="cyan" />
-
-              <feOffset in="rimBlur" dx={5} dy={5} result="blueOff" />
-              <feFlood floodColor="#6a8cff" floodOpacity={0.55 * rim} result="blueFlood" />
-              <feComposite in="blueFlood" in2="blueOff" operator="in" result="blue" />
-
-              {/* Soft yellow bottom kiss. */}
-              <feOffset in="rimBlur" dx={1} dy={7} result="yelOff" />
-              <feFlood floodColor="#ffe08a" floodOpacity={0.7 * rim} result="yelFlood" />
-              <feComposite in="yelFlood" in2="yelOff" operator="in" result="yel" />
-
-              {/* Form body: washed tint × coverage (tint is a wash, not gel paint). */}
-              <feGaussianBlur in="SourceAlpha" stdDeviation={edgeStd} result="edgeAlpha" />
-              <feFlood floodColor={bodyColor} floodOpacity={bodyAlpha} result="bodyFlood" />
-              <feComposite in="bodyFlood" in2="edgeAlpha" operator="in" result="glassBody" />
-
-              {/* Soft top specular reflection (roughness → gloss only). */}
-              <feOffset in="SourceAlpha" dx={-3} dy={-6} result="specOff" />
-              <feGaussianBlur in="specOff" stdDeviation={2 + liquid.roughness * 1.5} result="specBlur" />
-              <feFlood
-                floodColor="#ffffff"
-                floodOpacity={0.35 + (1 - liquid.roughness) * 0.45}
-                result="specFlood"
-              />
-              <feComposite in="specFlood" in2="specBlur" operator="in" result="spec" />
-              <feComposite in="spec" in2="edgeAlpha" operator="in" result="specClip" />
-
-              {/* Inner cool refraction tint. */}
-              <feMorphology in="SourceAlpha" operator="erode" radius={3} result="inner" />
-              <feGaussianBlur in="inner" stdDeviation={1.5 + edgeStd * 0.4} result="innerBlur" />
-              <feFlood
-                floodColor="#9ad4ff"
-                floodOpacity={0.05 + liquid.transmission * 0.1}
-                result="innerFlood"
-              />
-              <feComposite in="innerFlood" in2="innerBlur" operator="in" result="innerTint" />
-
-              <feMerge>
-                <feMergeNode in="warm" />
-                <feMergeNode in="mag" />
-                <feMergeNode in="yel" />
-                <feMergeNode in="blue" />
-                <feMergeNode in="cyan" />
-                <feMergeNode in="glassBody" />
-                <feMergeNode in="innerTint" />
-                <feMergeNode in="specClip" />
-              </feMerge>
-            </filter>
-          </>
-        )}
       </defs>
 
       <g className="grid-layer">
-        {showGrid && <rect x={0} y={0} width={SVG_SIZE} height={SVG_SIZE} fill={theme.bg} />}
-        {gridEls}
+        {showGrid && (
+          <>
+            <rect x={0} y={0} width={SVG_SIZE} height={SVG_SIZE} fill={theme.bg} />
+            {gridEls}
+          </>
+        )}
       </g>
 
-      {/* Fake refraction: displaced grid visible only inside the liquid silhouette. */}
-      {isLiquid && showGrid && markShapes && (
-        <g
-          className="liquid-refract"
-          mask="url(#liquidMask)"
-          filter="url(#liquidRefract)"
-          pointerEvents="none"
-          opacity={0.55 + (liquid?.transmission ?? 0) * 0.35}
-        >
-          <rect x={0} y={0} width={SVG_SIZE} height={SVG_SIZE} fill={theme.bg} />
-          {gridEls}
-        </g>
-      )}
-
+      <g className="editor-only guide-layer">{guideEls}</g>
       <g className="editor-only">{hitEls}</g>
 
       {mode === 'metaball' ? (
-        isLiquid ? (
-          <g filter="url(#prismRim)">
-            {canonicalPath ? markChildren : <g filter="url(#goo)">{markChildren}</g>}
-          </g>
-        ) : canonicalPath ? (
+        canonicalPath ? (
           <g>{markChildren}</g>
         ) : (
           <g filter="url(#goo)">{markChildren}</g>

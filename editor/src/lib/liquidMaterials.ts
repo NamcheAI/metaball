@@ -1,16 +1,11 @@
-// MeshPhysicalMaterial factory from LiquidParams (2D/3D shared look).
+// MeshPhysicalMaterial factory from the 3D liquid settings.
 // Live 3D liquid preview prefers MeshTransmissionMaterial in Metaball3DPreview;
 // this MeshPhysical path is for GLB export and fallback.
 import * as THREE from 'three';
-import {
-  liquidAttenuationDistance,
-  liquidSurfaceColor,
-  type LiquidParams,
-} from './liquidPresets';
+import { liquidAttenuationDistance, liquidSurfaceColor, type LiquidParams } from './liquidPresets';
 import type { ExportMaterialParams } from './organicMaterials';
 
 /** Live MeshPhysicalMaterial for the liquid look mode.
- *  `edgeSoftness` is 2D-only (silhouette falloff); mesh geometry stays hard.
  *  Tint lives in attenuationColor — surface color stays near-white so transmission isn't eaten. */
 export function createMaterialFromLiquid(params: LiquidParams): THREE.MeshPhysicalMaterial {
   const rim = params.rimStrength;

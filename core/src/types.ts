@@ -37,6 +37,8 @@ export interface EditorDoc {
   edgePulls: Record<string, number>
   mode: Mode
   theme: Theme
+  /** show the Namche raster behind the mark */
+  rasterEnabled: boolean
   /** gaussian blur std-dev feeding the goo filter (the "Blur" control) */
   gooStd: number
   /** alpha contrast / cutoff in the goo color-matrix (the "Contrast" control) */

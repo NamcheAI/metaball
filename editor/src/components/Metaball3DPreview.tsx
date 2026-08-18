@@ -32,14 +32,8 @@ import {
   type LiquidParams,
 } from '../lib/liquidPresets';
 import { getLiquidBackdrop, type LiquidBackdrop } from '../lib/liquidBackdrops';
-import {
-  SURFACE_SAMPLER_COUNT_MAX,
-  type Document,
-} from '../lib/model';
-import {
-  sampleMarchingCubesSurface,
-  type SurfaceSample,
-} from '../lib/surfaceSampler';
+import { SURFACE_SAMPLER_COUNT_MAX, type Document } from '../lib/model';
+import { sampleMarchingCubesSurface, type SurfaceSample } from '../lib/surfaceSampler';
 
 type Props = {
   doc: Document;
@@ -47,7 +41,7 @@ type Props = {
   meshRef?: MutableRefObject<MarchingCubes | null>;
   // WebGL canvas + invalidate for Blender handoff preview snapshot.
   canvasHandleRef?: MutableRefObject<Canvas3DHandle | null>;
-  /** When 0, rebuild the isosurface every doc change (used during Grow playback). */
+  /** Set to 0 for immediate rebuilds during already-throttled playback. */
   fieldDebounceMs?: number;
   /** Keep rendering every frame (Prism postfx / Drift animation). */
   continuous?: boolean;
@@ -118,10 +112,15 @@ function PublishHandles({
 /** Deterministic scale jitter so instances don't reshuffle on size-only updates. */
 function instanceScaleJitter(index: number): number {
   const hash = Math.imul(index ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
-  return 0.5 + (hash % 1000) / 1000 * 0.5;
+  return 0.5 + ((hash % 1000) / 1000) * 0.5;
 }
 
-function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_DEBOUNCE_MS }: Props) {
+function MetaballMesh({
+  doc,
+  meshRef,
+  canvasHandleRef,
+  fieldDebounceMs = FIELD_DEBOUNCE_MS,
+}: Props) {
   const invalidate = useThree((s) => s.invalidate);
   const debounceRef = useRef<number | null>(null);
   const primed = useRef(false);
@@ -135,14 +134,7 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
   const tempObject = useMemo(() => new THREE.Object3D(), []);
 
   const mc = useMemo(
-    () =>
-      new MarchingCubes(
-        MC_RESOLUTION,
-        new THREE.MeshPhysicalMaterial(),
-        false,
-        false,
-        350000,
-      ),
+    () => new MarchingCubes(MC_RESOLUTION, new THREE.MeshPhysicalMaterial(), false, false, 350000),
     [],
   );
 
@@ -255,10 +247,7 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
 
   const loadSampleBuffers = (sample: SurfaceSample, d: Document) => {
     const n = Math.min(sample.count, SURFACE_SAMPLER_COUNT_MAX);
-    points.geometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(sample.positions, 3),
-    );
+    points.geometry.setAttribute('position', new THREE.BufferAttribute(sample.positions, 3));
     points.geometry.computeBoundingSphere();
 
     const baseSize = d.surfaceSamplerSphereSize;
@@ -436,10 +425,8 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
   const lightRef = useRef(new THREE.Object3D());
   const wobbleRef = useRef<THREE.Group>(null);
   const mtmRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
-  const baseDistort =
-    0.16 + lp.dispersion * 0.3 + causticStrength * 0.14 + waveStrength * 0.28;
-  const baseTemporal =
-    0.28 + causticStrength * 0.35 + waveStrength * 0.45;
+  const baseDistort = 0.16 + lp.dispersion * 0.3 + causticStrength * 0.14 + waveStrength * 0.28;
+  const baseTemporal = 0.28 + causticStrength * 0.35 + waveStrength * 0.45;
   const baseThickness = 1.05 + lp.transmission * 0.55 + lp.opacity * 0.35;
   const baseChroma = 0.045 + lp.dispersion * 0.2 + lp.rimStrength * 0.07;
 
@@ -477,11 +464,13 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
       wobbleRef.current.scale.setScalar(s);
     }
     // Internal “water motion”: drive transmission shader so refraction/caustics keep shifting.
-    const mat = mtmRef.current as (THREE.MeshPhysicalMaterial & {
-      distortion?: number;
-      temporalDistortion?: number;
-      chromaticAberration?: number;
-    }) | null;
+    const mat = mtmRef.current as
+      | (THREE.MeshPhysicalMaterial & {
+          distortion?: number;
+          temporalDistortion?: number;
+          chromaticAberration?: number;
+        })
+      | null;
     if (mat) {
       const surge =
         0.55 +
@@ -507,7 +496,6 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
         mat.chromaticAberration = baseChroma * (0.8 + 0.35 * Math.sin(t * 0.95 + 0.4));
       }
       mat.thickness = baseThickness * (0.92 + 0.16 * Math.sin(t * 0.75));
-      mat.needsUpdate = true;
     }
   });
 
@@ -515,8 +503,8 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
     <MeshTransmissionMaterial
       ref={mtmRef as never}
       attach="material"
-      samples={10}
-      resolution={448}
+      samples={6}
+      resolution={320}
       transmission={lp.transmission}
       roughness={lp.roughness}
       thickness={baseThickness}
@@ -560,7 +548,7 @@ function MetaballMesh({ doc, meshRef, canvasHandleRef, fieldDebounceMs = FIELD_D
               (0.04 + causticStrength * 0.12 + lp.transmission * 0.04 + lp.bloom * 0.03) *
               (0.7 + danceMul * 0.25)
             }
-            resolution={896}
+            resolution={512}
             lightSource={lightRef}
             position={[0, -0.78, 0]}
           >
@@ -663,6 +651,7 @@ function RefractionFloor({ backdrop }: { backdrop: LiquidBackdrop | null }) {
 function WetMapDecal({ liquidParams }: { liquidParams: LiquidParams }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const trailRef = useRef<{ x: number; z: number; a: number }[]>([]);
+  const updateElapsedRef = useRef(0);
   const boxRef = useRef(new THREE.Box3());
   const centerRef = useRef(new THREE.Vector3());
   const { canvas, tex } = useMemo(() => {
@@ -678,6 +667,11 @@ function WetMapDecal({ liquidParams }: { liquidParams: LiquidParams }) {
   useEffect(() => () => tex.dispose(), [tex]);
 
   useFrame((_, dt) => {
+    updateElapsedRef.current += dt;
+    if (updateElapsedRef.current < 1 / 30) return;
+    const elapsed = updateElapsedRef.current;
+    updateElapsedRef.current = 0;
+
     const mc = getLiveMarchingCubes();
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -698,7 +692,7 @@ function WetMapDecal({ liquidParams }: { liquidParams: LiquidParams }) {
 
     const trail = trailRef.current;
     trail.push({ x: wx, z: wz, a: 1 });
-    const fade = Math.max(0.82, 1 - dt * 2.4);
+    const fade = Math.max(0.82, 1 - elapsed * 2.4);
     for (const p of trail) p.a *= fade;
     while (trail.length > 18 || (trail[0] && trail[0].a < 0.04)) trail.shift();
 
@@ -730,20 +724,9 @@ function WetMapDecal({ liquidParams }: { liquidParams: LiquidParams }) {
   });
 
   return (
-    <mesh
-      ref={meshRef}
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, -0.775, 0]}
-      renderOrder={2}
-    >
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.775, 0]} renderOrder={2}>
       <planeGeometry args={[8, 8]} />
-      <meshBasicMaterial
-        map={tex}
-        transparent
-        depthWrite={false}
-        opacity={0.55}
-        toneMapped
-      />
+      <meshBasicMaterial map={tex} transparent depthWrite={false} opacity={0.55} toneMapped />
     </mesh>
   );
 }
@@ -759,7 +742,15 @@ function SceneLights({ liquid }: { liquid?: boolean }) {
   );
 }
 
-function PrismPostFx({ bloom, rim, dispersion }: { bloom: number; rim: number; dispersion: number }) {
+function PrismPostFx({
+  bloom,
+  rim,
+  dispersion,
+}: {
+  bloom: number;
+  rim: number;
+  dispersion: number;
+}) {
   const offset = useMemo(
     () =>
       new THREE.Vector2(
@@ -807,9 +798,7 @@ function Scene({ doc, meshRef, canvasHandleRef, fieldDebounceMs }: Props) {
         {showEnv && (
           <Environment
             preset="studio"
-            environmentIntensity={
-              isLiquid ? 0.28 + doc.liquidParams.transmission * 0.22 : 0.95
-            }
+            environmentIntensity={isLiquid ? 0.28 + doc.liquidParams.transmission * 0.22 : 0.95}
           />
         )}
       </Suspense>
@@ -819,7 +808,7 @@ function Scene({ doc, meshRef, canvasHandleRef, fieldDebounceMs }: Props) {
         scale={6}
         blur={isLiquid ? 3.4 : 2.2}
         far={2.8}
-        resolution={512}
+        resolution={256}
         color="#1a1a1e"
       />
       {isLiquid && (
@@ -860,7 +849,7 @@ export default function Metaball3DPreview({
       className="metaball-3d-canvas"
       style={{ width: '100%', height: '100%' }}
       camera={{ position: [0, 0.25, 3.6], fov: 34 }}
-      dpr={[1, 1.75]}
+      dpr={[1, 1.5]}
       frameloop={continuous || isLiquid ? 'always' : 'demand'}
       gl={{
         antialias: true,

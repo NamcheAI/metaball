@@ -22,7 +22,7 @@ export type { GenerateParams, GenerateResult, SvgParams } from './generate.js'
 export { layoutFromSeed, rng, seedFrom } from './seed.js'
 export type { SeedLayoutOptions } from './seed.js'
 
-export { EDITOR_PRESET_IDS, PRESETS, presetById } from './presets.js'
+export { DEFAULT_PRESET_ID, EDITOR_PRESET_IDS, PRESETS, presetById } from './presets.js'
 
 export { buildRenderData, capsuleRadius } from './primitives.js'
 

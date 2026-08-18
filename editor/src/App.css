@@ -35,14 +35,17 @@
   border-bottom: 1px solid var(--panel-border);
 }
 
-.toolbar-liquid-motions {
-  flex-shrink: 0;
+.toolbar-mode-control {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 0 12px;
-  border-bottom: 1px solid var(--panel-border);
-  margin-bottom: 2px;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.toolbar-mode-control p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .segmented.tight {
@@ -96,6 +99,22 @@
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
   background: var(--surface-muted);
+}
+
+.toolbar-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.subsection-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .advanced-export {
