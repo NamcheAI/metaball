@@ -39,6 +39,8 @@ export type Metaball3DProps = {
   material?: MaterialInput;
   background?: THREE.ColorRepresentation;
   interactive?: boolean;
+  /** Keep the render loop active for host-driven animation without rotating the camera. */
+  renderContinuously?: boolean;
   autoRotate?: boolean;
   autoRotateSpeed?: number;
   quality?: Metaball3DQuality;
@@ -242,6 +244,7 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
     material = 'wax',
     background = '#f0f2f5',
     interactive = true,
+    renderContinuously = false,
     autoRotate = false,
     autoRotateSpeed = 1,
     quality = 'balanced',
@@ -267,7 +270,7 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: interactive ? 'none' : 'auto' }}
         camera={{ position: [0, 0.25, INITIAL_CAMERA_DISTANCE], fov: CAMERA_FOV, near: 0.05, far: 50 }}
         dpr={dpr}
-        frameloop={autoRotate ? 'always' : 'demand'}
+        frameloop={autoRotate || renderContinuously ? 'always' : 'demand'}
         gl={{
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,

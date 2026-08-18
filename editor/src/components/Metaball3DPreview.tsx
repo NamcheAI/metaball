@@ -883,6 +883,7 @@ function PublicMaterialPreview({
   meshRef,
   canvasHandleRef,
   fieldDebounceMs = FIELD_DEBOUNCE_MS,
+  continuous = false,
 }: Props) {
   const publishHandle = useCallback(
     (handle: Metaball3DHandle | null) => {
@@ -905,7 +906,8 @@ function PublicMaterialPreview({
       shape={shape}
       material={getMaterialPreset(doc.materialPreset).id}
       background="#ececf0"
-      quality="balanced"
+      quality="high"
+      renderContinuously={continuous}
       updateDebounceMs={fieldDebounceMs}
       preserveDrawingBuffer
     />

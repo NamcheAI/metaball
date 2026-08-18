@@ -25,6 +25,10 @@ export function BrandMark() {
 The component supplies a square aspect ratio by default. Pass `width`, `height`
 or `aspectRatio` through `style` to fit the host layout.
 
+Static scenes render only when their state changes. Set `autoRotate` for the
+built-in camera rotation, or `renderContinuously` when the host animates the
+shape itself and needs a frame for every update.
+
 ## Next.js
 
 Three.js needs a browser canvas, so load the component as a client-only chunk:

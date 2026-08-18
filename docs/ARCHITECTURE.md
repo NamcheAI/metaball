@@ -42,8 +42,8 @@ Blender handoff. `Metaball3DPreview` is an adapter:
 - 3D is lazy-loaded from `App.tsx`.
 - The public viewer defaults to `balanced` voxel quality; Studio uses `high`
   where export fidelity matters.
-- Static material views render on demand. Auto-rotation and liquid may render
-  continuously.
+- Static material views render on demand. Auto-rotation, host-driven Studio
+  motion and liquid render continuously.
 - Marching Cubes fields may debounce rapid editor updates.
 - Every Three.js allocation, timer and animation frame must be disposed or
   cancelled on unmount.
