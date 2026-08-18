@@ -41,7 +41,7 @@ type Props = {
   meshRef?: MutableRefObject<MarchingCubes | null>;
   // WebGL canvas + invalidate for Blender handoff preview snapshot.
   canvasHandleRef?: MutableRefObject<Canvas3DHandle | null>;
-  /** Debounce expensive isosurface rebuilds while motion is playing. */
+  /** Set to 0 for immediate rebuilds during already-throttled playback. */
   fieldDebounceMs?: number;
   /** Keep rendering every frame (Prism postfx / Drift animation). */
   continuous?: boolean;

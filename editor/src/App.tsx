@@ -969,7 +969,9 @@ export default function App() {
                 doc={displayDoc}
                 meshRef={mesh3dRef}
                 canvasHandleRef={canvas3dHandleRef}
-                fieldDebounceMs={growing || activeMotion !== null ? MOTION_FRAME_MS : undefined}
+                // Playback state is already capped at 30 fps. Rebuild immediately for each
+                // emitted state so a trailing debounce cannot be starved by the same cadence.
+                fieldDebounceMs={growing || activeMotion !== null ? 0 : undefined}
                 continuous={activeMotion !== null || doc.lookMode === 'liquid'}
               />
             </Suspense>
