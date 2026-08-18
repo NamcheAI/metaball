@@ -1,9 +1,11 @@
 import {
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type MutableRefObject,
 } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -23,6 +25,7 @@ import {
   type Canvas3DHandle,
 } from '../lib/canvas3dHandle';
 import { MC_RESOLUTION, updateMarchingCubesField } from '../lib/metaball3d';
+import { fitPreviewCameraDistance } from '../lib/camera3d';
 import { getMaterialPreset } from '../lib/materialPresets';
 import { createMaterialForPreset } from '../lib/organicMaterials';
 import {
@@ -57,13 +60,36 @@ function revealDurationMs(count: number): number {
   return Math.min(4200, Math.max(900, count * 0.75));
 }
 
-function InvalidateOnControl() {
+const CAMERA_FOV = 34;
+const INITIAL_CAMERA_DISTANCE = 4.8;
+const MAX_CAMERA_DISTANCE = 10;
+
+function InvalidateOnControl({ objectRadius }: { objectRadius: number }) {
   const invalidate = useThree((s) => s.invalidate);
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  const minDistance = useMemo(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera)) return 2;
+    return fitPreviewCameraDistance(
+      objectRadius,
+      camera.fov,
+      size.width / Math.max(1, size.height),
+    );
+  }, [camera, objectRadius, size.height, size.width]);
+
+  useLayoutEffect(() => {
+    const distance = camera.position.length();
+    if (distance >= minDistance || distance === 0) return;
+    camera.position.multiplyScalar(minDistance / distance);
+    camera.updateProjectionMatrix();
+    invalidate();
+  }, [camera, invalidate, minDistance]);
+
   return (
     <OrbitControls
       enablePan={false}
-      minDistance={2}
-      maxDistance={8}
+      minDistance={minDistance}
+      maxDistance={MAX_CAMERA_DISTANCE}
       target={[0, 0, 0]}
       makeDefault
       onChange={() => invalidate()}
@@ -120,7 +146,8 @@ function MetaballMesh({
   meshRef,
   canvasHandleRef,
   fieldDebounceMs = FIELD_DEBOUNCE_MS,
-}: Props) {
+  onBoundsChange,
+}: Props & { onBoundsChange: (radius: number) => void }) {
   const invalidate = useThree((s) => s.invalidate);
   const debounceRef = useRef<number | null>(null);
   const primed = useRef(false);
@@ -336,6 +363,18 @@ function MetaballMesh({
   useEffect(() => {
     const rebuild = () => {
       updateMarchingCubesField(mc, latestDoc.current);
+      const positions = mc.geometry.getAttribute('position').array as Float32Array;
+      const coordinateCount = Math.min(mc.count * 3, positions.length);
+      let radiusSquared = 0;
+      for (let i = 0; i < coordinateCount; i += 3) {
+        radiusSquared = Math.max(
+          radiusSquared,
+          positions[i]! * positions[i]! +
+            positions[i + 1]! * positions[i + 1]! +
+            positions[i + 2]! * positions[i + 2]!,
+        );
+      }
+      onBoundsChange(Math.sqrt(radiusSquared) * Math.max(mc.scale.x, mc.scale.y, mc.scale.z));
       resampleFromMesh();
       invalidate();
     };
@@ -357,6 +396,7 @@ function MetaballMesh({
   }, [
     mc,
     invalidate,
+    onBoundsChange,
     fieldDebounceMs,
     doc.nodes,
     doc.edges,
@@ -773,6 +813,11 @@ function PrismPostFx({
 }
 
 function Scene({ doc, meshRef, canvasHandleRef, fieldDebounceMs }: Props) {
+  const [objectRadius, setObjectRadius] = useState(1.2);
+  const handleBoundsChange = useCallback((radius: number) => {
+    if (!Number.isFinite(radius) || radius <= 0) return;
+    setObjectRadius((current) => (Math.abs(current - radius) < 0.01 ? current : radius));
+  }, []);
   const preset = getMaterialPreset(doc.materialPreset);
   const isLiquid = doc.lookMode === 'liquid';
   const backdrop = isLiquid ? getLiquidBackdrop(doc.liquidBackdrop) : null;
@@ -793,6 +838,7 @@ function Scene({ doc, meshRef, canvasHandleRef, fieldDebounceMs }: Props) {
         meshRef={meshRef}
         canvasHandleRef={canvasHandleRef}
         fieldDebounceMs={fieldDebounceMs}
+        onBoundsChange={handleBoundsChange}
       />
       <Suspense fallback={null}>
         {showEnv && (
@@ -822,7 +868,7 @@ function Scene({ doc, meshRef, canvasHandleRef, fieldDebounceMs }: Props) {
         key={`${doc.lookMode}-${doc.materialPreset}-${doc.liquidPreset}-${doc.liquidBackdrop}`}
         times={isLiquid ? 12 : 6}
       />
-      <InvalidateOnControl />
+      <InvalidateOnControl objectRadius={objectRadius} />
     </>
   );
 }
@@ -848,7 +894,7 @@ export default function Metaball3DPreview({
     <Canvas
       className="metaball-3d-canvas"
       style={{ width: '100%', height: '100%' }}
-      camera={{ position: [0, 0.25, 3.6], fov: 34 }}
+      camera={{ position: [0, 0.25, INITIAL_CAMERA_DISTANCE], fov: CAMERA_FOV, near: 0.05, far: 50 }}
       dpr={[1, 1.5]}
       frameloop={continuous || isLiquid ? 'always' : 'demand'}
       gl={{
