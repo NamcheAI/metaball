@@ -1,6 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MetaballCanvas from './components/MetaballCanvas';
-import AppFooter from './components/AppFooter';
 import Toolbar from './components/Toolbar';
 import { copySvgToClipboard, exportPng, exportSvg, type FlattenSpec } from './lib/export';
 import {
@@ -1005,7 +1004,6 @@ export default function App() {
         </div>
       </main>
 
-      <AppFooter />
     </div>
   );
 }

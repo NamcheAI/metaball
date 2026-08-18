@@ -1,10 +1,8 @@
 .app {
   display: grid;
   grid-template-columns: 320px 1fr;
-  grid-template-rows: 1fr auto;
-  grid-template-areas:
-    'sidebar stage'
-    'footer footer';
+  grid-template-rows: 1fr;
+  grid-template-areas: 'sidebar stage';
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -160,20 +158,32 @@
 .brand {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  line-height: 1.15;
+  gap: 9px;
 }
-.brand strong {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.namche-mark {
+  display: block;
+  width: 28px;
+  height: 28px;
 }
-.brand span {
-  font-family: var(--font-mono);
-  font-size: 11px;
+.namche-wordmark {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
   font-weight: 400;
-  letter-spacing: 0.06em;
+  font-size: 18px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.namche-wordmark strong,
+.namche-wordmark span {
+  font: inherit;
+}
+.brand p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -402,53 +412,6 @@ button.danger:active:not(:disabled) {
   margin-top: 4px;
 }
 
-.app-footer {
-  grid-area: footer;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 20px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--panel-border);
-  background: var(--panel);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.app-footer-hint {
-  margin: 0;
-  flex: 1 1 280px;
-}
-
-.app-footer-links {
-  flex-shrink: 0;
-}
-
-.app-footer-meta {
-  margin: 0;
-  white-space: nowrap;
-}
-
-.app-footer .text-link {
-  font-family: inherit;
-  font-size: inherit;
-  letter-spacing: inherit;
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .app-footer .text-link:hover {
-    color: var(--text);
-    border-bottom-color: var(--text);
-  }
-}
-
 .select-row {
   display: flex;
   align-items: center;
@@ -548,11 +511,10 @@ button.danger:active:not(:disabled) {
 @media (max-width: 720px) {
   .app {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto 1fr;
     grid-template-areas:
       'sidebar'
-      'stage'
-      'footer';
+      'stage';
     height: auto;
     min-height: 100vh;
   }
@@ -565,12 +527,5 @@ button.danger:active:not(:disabled) {
 
   .toolbar-panels {
     overflow-y: auto;
-  }
-  .app-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .app-footer-meta {
-    white-space: normal;
   }
 }

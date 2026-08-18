@@ -20,6 +20,7 @@ npm run lint     # editor
 | Path            | What it is                                                                   |
 | --------------- | ---------------------------------------------------------------------------- |
 | `core/`         | `@namche/metaball` — the engine. Dependency-free, deterministic, TypeScript. |
+| `renderer/`     | `@namche/metaball-react` — embeddable React/Three.js Brand-page viewer.      |
 | `editor/`       | Metaball Studio: 2D authoring, live 3D, motion, materials, and export.       |
 | `assets/marks/` | The canonical marks, baked to SVG + JSON.                                    |
 | `scripts/`      | `bake-assets.mjs`, `sync-design.mjs`.                                        |
@@ -27,6 +28,12 @@ npm run lint     # editor
 The editor imports the engine — there is one implementation of the geometry,
 not two. A change to how marks are drawn shows up in the editor, in the baked
 assets and in the design system together, or not at all.
+
+The normal 3D material view also runs through the public renderer package.
+Studio adds its advanced liquid, surface-sampler, export, and Blender workflows
+around that component rather than exposing the editor document as a public API.
+See [`renderer/README.md`](renderer/README.md) for Brand-page integration and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the dependency boundaries.
 
 ### Metaball Studio
 
@@ -155,3 +162,22 @@ Two deliberate departures from the original:
 - **Edge-clipped contours.** Forms touching the raster edge used to stitch
   into open fragments; the field is now sampled through a one-pixel zero
   border so every contour closes.
+
+## Credits
+
+The original Metaball Studio concept, design direction, and implementation are
+by [Michael Marte](https://github.com/fizzybubbele) for
+[Ruhm etc.](https://ruhmetc.com/).
+
+The production-bundle reconstruction, canonical engine extraction, renderer
+package architecture, and ongoing integration are maintained by the NAMCHE
+engineering contributors listed in [`AUTHORS.txt`](AUTHORS.txt) and
+[`CONTRIBUTORS.txt`](CONTRIBUTORS.txt). Michael's full original editor source is
+preserved in git history (commit `7c580c9`) and on the
+`michael/editor-full-source` branch.
+
+## License
+
+The software is currently marked `UNLICENSED`. Confirm and add the intended
+NAMCHE software license before a public npm release. The SIL Open Font License
+used by Namche Shadow applies to the fonts, not automatically to this codebase.

@@ -1,0 +1,9 @@
+# Project authors and design collaborators.
+# Names are listed as: Name or Organization <contact>
+
+# Original Metaball Studio concept, design direction, and development
+Michael Marte <michael@ruhmetc.com>
+Ruhm GmbH <office@ruhmetc.com>
+
+# Engineering reconstruction, package architecture, and integration
+BTLG Holding GmbH <jodok@batlogg.com>
