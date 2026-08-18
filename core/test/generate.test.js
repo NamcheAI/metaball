@@ -88,6 +88,18 @@ test('output is deterministic for identical params', () => {
   assert.equal(a.d, b.d)
 })
 
+test('canonical preset caching never shares mutable primitives', () => {
+  const first = generate({ preset: 'loop', backend: 'pure' })
+  const originalCircleCount = first.primitives.circles.length
+  first.primitives.circles.length = 0
+
+  const second = generate({ preset: 'loop', backend: 'pure' })
+  assert.equal(second.d, first.d)
+  assert.equal(second.backend, 'pure')
+  assert.equal(second.primitives.circles.length, originalCircleCount)
+  assert.notEqual(second.primitives, first.primitives)
+})
+
 test('seeded layouts are reproducible and seed-sensitive', () => {
   const a = generate({ seed: 'namche', count: 5 })
   const b = generate({ seed: 'namche', count: 5 })

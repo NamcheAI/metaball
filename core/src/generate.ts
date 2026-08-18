@@ -59,6 +59,14 @@ export interface GenerateResult {
   primitives: RenderData
 }
 
+type CachedPresetPath = Pick<GenerateResult, 'd' | 'backend'>
+
+// Canonical presets are rendered repeatedly by component libraries. Keep only
+// their immutable path/backend pair; primitives are rebuilt per call so callers
+// can never mutate shared cached geometry. At most three entries per preset
+// exist (auto, canvas, pure).
+const presetPathCache = new Map<string, CachedPresetPath>()
+
 function resolveSpec(params: GenerateParams): { nodes: Node[]; edges: Edge[] } {
   if (params.nodes) return { nodes: params.nodes, edges: params.edges ?? [] }
   if (params.preset) {
@@ -136,9 +144,13 @@ export function generate(params: GenerateParams = {}): GenerateResult {
     return { ...empty, d: preset.referencePath }
   }
 
+  const wanted = params.backend ?? 'auto'
+  const cacheKey = preset && !hasShapeOverrides ? `${preset.id}:${wanted}` : null
+  const cached = cacheKey ? presetPathCache.get(cacheKey) : undefined
+  if (cached) return { ...empty, ...cached }
+
   const rasterSize = Math.ceil(VIEWBOX * resolution)
   const stdDev = effectiveBlur(blur, pinch) * resolution
-  const wanted = params.backend ?? 'auto'
 
   let read: ((x: number, y: number) => number) | null = null
   let backend: 'canvas' | 'pure' = 'pure'
@@ -164,6 +176,7 @@ export function generate(params: GenerateParams = {}): GenerateResult {
     precision,
   }).trim()
 
+  if (cacheKey) presetPathCache.set(cacheKey, { d, backend })
   return { d, viewBox, size: VIEWBOX, backend, primitives }
 }
 
