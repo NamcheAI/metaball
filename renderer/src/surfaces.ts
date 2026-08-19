@@ -387,8 +387,11 @@ ${surfaceCommon}
     float namcheCell = namcheCells(vNamcheSurfacePosition * namcheSurfaceScale, namcheCoralPoreSize, namcheSurfaceSeed);
     namcheHeight -= smoothstep(0.76 - namcheCoralPorosityAmount * 0.33, 0.94 - namcheCoralPorosityAmount * 0.20, namcheCell) * 0.72;
   }
-  vec3 namcheDp1 = dFdx(vNamcheSurfacePosition);
-  vec3 namcheDp2 = dFdy(vNamcheSurfacePosition);
+  // Three's physical-material normal is view-space here. Keep the procedural
+  // height field object-space, but derive its perturbation frame in view-space
+  // so rotating the object cannot flip or collapse the relief.
+  vec3 namcheDp1 = dFdx(-vViewPosition);
+  vec3 namcheDp2 = dFdy(-vViewPosition);
   vec3 namcheR1 = cross(namcheDp2, normal);
   vec3 namcheR2 = cross(normal, namcheDp1);
   float namcheDet = dot(namcheDp1, namcheR1);
