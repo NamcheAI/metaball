@@ -1,8 +1,10 @@
 .app {
   display: grid;
   grid-template-columns: 320px 1fr;
-  grid-template-rows: 1fr;
-  grid-template-areas: 'sidebar stage';
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'sidebar stage'
+    'sidebar credits';
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -508,13 +510,50 @@ button.danger:active:not(:disabled) {
   color: var(--muted);
 }
 
+.credits-line {
+  grid-area: credits;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 16px 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.credits-line a {
+  color: inherit;
+  text-underline-offset: 2px;
+  text-decoration-color: transparent;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    text-decoration-color var(--duration-fast) var(--ease-out);
+}
+
+.credits-line a:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+
+.credits-line a:focus-visible {
+  color: var(--text);
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 @media (max-width: 720px) {
   .app {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-areas:
       'sidebar'
-      'stage';
+      'stage'
+      'credits';
     height: auto;
     min-height: 100vh;
   }
@@ -527,5 +566,12 @@ button.danger:active:not(:disabled) {
 
   .toolbar-panels {
     overflow-y: auto;
+  }
+
+  .credits-line {
+    justify-content: center;
+    padding-inline: 12px;
+    font-size: clamp(7px, 2.3vw, 9px);
+    text-align: center;
   }
 }
