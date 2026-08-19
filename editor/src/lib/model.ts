@@ -44,6 +44,7 @@ import {
   type LookMode,
 } from './liquidPresets';
 import { DEFAULT_LIQUID_BACKDROP } from './liquidBackdrops';
+import { normalizeSurface, type SurfaceParameters } from '@namche/metaball-react';
 
 export {
   CELL,
@@ -58,6 +59,7 @@ export {
 };
 export type { Edge, Mode, Size, Theme };
 export type { LiquidParams, LookMode };
+export type { SurfaceParameters };
 export { DEFAULT_LIQUID_PRESET, cloneLiquidParams, defaultLiquidParams };
 export { DEFAULT_LIQUID_BACKDROP };
 
@@ -141,6 +143,7 @@ export const DEFAULT_PRESET =
   PRESETS.find((preset) => preset.id === DEFAULT_EDITOR_PRESET_ID) ?? PRESETS[0]!;
 
 export const DEFAULT_MATERIAL_PRESET = 'wax';
+export const DEFAULT_SURFACE = normalizeSurface('smooth');
 
 export type SurfaceSamplerMode = 'points' | 'spheres' | 'both';
 export const SURFACE_SAMPLER_ENABLED = false;
@@ -172,6 +175,7 @@ export function normalizeSurfaceSamplerMode(value: unknown): SurfaceSamplerMode 
 
 export type Document = EditorDoc & {
   materialPreset: string;
+  surface: SurfaceParameters;
   lookMode: LookMode;
   liquidPreset: string;
   liquidParams: LiquidParams;
@@ -185,7 +189,7 @@ export type Document = EditorDoc & {
   surfaceSamplerAnimate: boolean;
 };
 
-export const DOCUMENT_VERSION = 10;
+export const DOCUMENT_VERSION = 11;
 export type StoredDocument = Document & { version: number };
 
 export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []): Document {
@@ -205,6 +209,7 @@ export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []
     flattenEpsilon: FLATTEN_EPSILON,
     flattenResolution: FLATTEN_RESOLUTION,
     materialPreset: DEFAULT_MATERIAL_PRESET,
+    surface: { ...DEFAULT_SURFACE },
     lookMode: 'material',
     liquidPreset: DEFAULT_LIQUID_PRESET,
     liquidParams: defaultLiquidParams(),
@@ -297,6 +302,7 @@ export function cloneDocument(doc: Document): Document {
     edgeFactors: { ...doc.edgeFactors },
     edgePulls: { ...doc.edgePulls },
     liquidParams: cloneLiquidParams(doc.liquidParams),
+    surface: { ...doc.surface },
   };
 }
 

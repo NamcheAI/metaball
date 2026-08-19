@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — `@namche/metaball-react`
+
+- Add the strategy-specific `surface` API and serializable surface registry.
+- Add UV-free pearl/coral shader previews and deterministic instanced
+  moss/grass/fur fiber layers.
+- Add matching Studio controls, persisted document migration, and a Blender
+  handoff manifest that distinguishes shader, lattice, and fiber production
+  paths.
+- Add a Figma Weave workflow guide and design-repository catalog sync.
+
 ## `@namche/metaball` 1.0.0 — 2026-08-19
 
 - First public release of the deterministic 2D metaball geometry engine.

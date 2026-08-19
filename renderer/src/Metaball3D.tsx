@@ -18,6 +18,15 @@ import { fitPreviewCameraDistance } from './camera.js';
 import { updateMarchingCubesField } from './field.js';
 import { createMaterial, materialNeedsEnvironment, type MaterialInput } from './materials.js';
 import { resolveMetaballShape, type MetaballShape, type ResolvedMetaballShape } from './shape.js';
+import { FiberSurface } from './FiberSurface.js';
+import {
+  applySurfaceShader,
+  normalizeSurface,
+  surfaceBoundsScale,
+  surfaceDefaultMaterial,
+  type SurfaceInput,
+  type SurfaceParameters,
+} from './surfaces.js';
 
 const QUALITY_RESOLUTION = { low: 56, balanced: 72, high: 96 } as const;
 const CAMERA_FOV = 34;
@@ -37,6 +46,8 @@ export type Metaball3DProps = {
   /** Custom graph and shape controls. When supplied, it takes precedence over preset. */
   shape?: MetaballShape;
   material?: MaterialInput;
+  /** UV-free procedural or fiber surface. Defaults to the canonical smooth body. */
+  surface?: SurfaceInput;
   background?: THREE.ColorRepresentation;
   interactive?: boolean;
   /** Keep the render loop active for host-driven animation without rotating the camera. */
@@ -99,6 +110,7 @@ function CameraControls({
 function MetaballMesh({
   shape,
   materialInput,
+  surface,
   quality,
   updateDebounceMs,
   forwardedRef,
@@ -107,6 +119,7 @@ function MetaballMesh({
 }: {
   shape: ResolvedMetaballShape;
   materialInput: MaterialInput;
+  surface: SurfaceParameters;
   quality: Metaball3DQuality;
   updateDebounceMs: number;
   forwardedRef: React.ForwardedRef<Metaball3DHandle>;
@@ -119,11 +132,17 @@ function MetaballMesh({
   latestShape.current = shape;
   const primed = useRef(false);
   const timer = useRef<number | null>(null);
+  const [surfaceRevision, setSurfaceRevision] = useState(0);
+  const [renderedSurface, setRenderedSurface] = useState(surface);
   const marchingCubes = useMemo(
     () => new MarchingCubes(QUALITY_RESOLUTION[quality], new THREE.MeshPhysicalMaterial(), false, false, 350000),
     [quality],
   );
-  const materialResult = useMemo(() => createMaterial(materialInput), [materialInput]);
+  const materialResult = useMemo(() => {
+    const result = createMaterial(materialInput);
+    applySurfaceShader(result.material, surface);
+    return result;
+  }, [materialInput, surface]);
 
   useEffect(() => {
     marchingCubes.scale.setScalar(1.2);
@@ -160,7 +179,11 @@ function MetaballMesh({
           positions[index]! ** 2 + positions[index + 1]! ** 2 + positions[index + 2]! ** 2,
         );
       }
-      onBoundsChange(Math.sqrt(radiusSquared) * marchingCubes.scale.x);
+      onBoundsChange(Math.sqrt(radiusSquared) * marchingCubes.scale.x * surfaceBoundsScale(surface));
+      setRenderedSurface(surface);
+      if (surface.kind === 'moss' || surface.kind === 'grass' || surface.kind === 'fur') {
+        setSurfaceRevision((value) => value + 1);
+      }
       invalidate();
     };
 
@@ -174,14 +197,22 @@ function MetaballMesh({
     return () => {
       if (timer.current !== null) window.clearTimeout(timer.current);
     };
-  }, [invalidate, marchingCubes, onBoundsChange, shape, updateDebounceMs]);
+  }, [invalidate, marchingCubes, onBoundsChange, shape, surface, updateDebounceMs]);
 
-  return <primitive object={marchingCubes} />;
+  return (
+    <primitive object={marchingCubes}>
+      {(surface.kind === 'moss' || surface.kind === 'grass' || surface.kind === 'fur') &&
+        (renderedSurface.kind === 'moss' || renderedSurface.kind === 'grass' || renderedSurface.kind === 'fur') && (
+        <FiberSurface source={marchingCubes} surface={renderedSurface} revision={surfaceRevision} />
+      )}
+    </primitive>
+  );
 }
 
 function Scene({
   shape,
   material,
+  surface,
   background,
   interactive,
   autoRotate,
@@ -193,6 +224,7 @@ function Scene({
 }: {
   shape: ResolvedMetaballShape;
   material: MaterialInput;
+  surface: SurfaceParameters;
   background: THREE.ColorRepresentation;
   interactive: boolean;
   autoRotate: boolean;
@@ -217,6 +249,7 @@ function Scene({
       <MetaballMesh
         shape={shape}
         materialInput={material}
+        surface={surface}
         quality={quality}
         updateDebounceMs={updateDebounceMs}
         forwardedRef={forwardedRef}
@@ -241,7 +274,8 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
   {
     preset,
     shape,
-    material = 'wax',
+    material,
+    surface = 'smooth',
     background = '#f0f2f5',
     interactive = true,
     renderContinuously = false,
@@ -259,6 +293,8 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
   forwardedRef,
 ) {
   const resolvedShape = useMemo(() => resolveMetaballShape(shape, preset), [preset, shape]);
+  const resolvedSurface = useMemo(() => normalizeSurface(surface), [surface]);
+  const resolvedMaterial = material ?? surfaceDefaultMaterial(resolvedSurface);
   return (
     <div
       className={className}
@@ -281,7 +317,8 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
       >
         <Scene
           shape={resolvedShape}
-          material={material}
+          material={resolvedMaterial}
+          surface={resolvedSurface}
           background={background}
           interactive={interactive}
           autoRotate={autoRotate}

@@ -29,6 +29,11 @@ The editor imports the engine — there is one implementation of the geometry,
 not two. A change to how marks are drawn shows up in the editor, in the baked
 assets and in the design system together, or not at all.
 
+The renderer also provides strategy-specific parametric 3D surfaces: nacre
+shaders, coral relief previews, and deterministic moss/grass/fur fibers. Their
+architecture and Blender/Weave routing live in
+[`docs/SURFACES.md`](docs/SURFACES.md).
+
 The normal 3D material view also runs through the public renderer package.
 Studio adds its advanced liquid, surface-sampler, export, and Blender workflows
 around that component rather than exposing the editor document as a public API.
@@ -132,6 +137,7 @@ alike.
 npm run build:core
 npm run sync:design                  # engine → ../design/generator/
 npm run sync:marks                   # marks  → ../design/assets/shapes/generated/
+npm run sync:surfaces                # 3D surface catalog → ../design/assets/metaballs/surfaces/
 npm run sync:design -- --check       # verify, non-zero exit if stale
 npm run sync:marks -- --check
 ```

@@ -21,6 +21,28 @@ export type {
 } from './materials.js';
 export { resolveMetaballShape } from './shape.js';
 export type { MetaballShape, ResolvedMetaballShape } from './shape.js';
+export {
+  SURFACE_PRESETS,
+  SURFACE_PRESET_IDS,
+  applySurfaceShader,
+  getSurfacePreset,
+  normalizeSurface,
+  surfaceBoundsScale,
+  surfaceDefaultMaterial,
+} from './surfaces.js';
+export type {
+  CoralSurfaceParameters,
+  FiberSurfaceParameters,
+  PearlSurfaceParameters,
+  SmoothSurfaceParameters,
+  SurfaceCommonParameters,
+  SurfaceControl,
+  SurfaceInput,
+  SurfaceParameters,
+  SurfacePreset,
+  SurfacePresetId,
+  SurfaceStrategy,
+} from './surfaces.js';
 export { blurFromGooStd, isolationFromThreshold, updateMarchingCubesField } from './field.js';
 export {
   PREVIEW_CAMERA_MARGIN,
