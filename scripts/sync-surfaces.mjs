@@ -58,6 +58,19 @@ const catalog = {
 };
 const content = `${JSON.stringify(catalog, null, 2)}\n`;
 
+function withoutVolatileProvenance(value) {
+  if (value === null) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed?.source && typeof parsed.source === 'object') {
+      delete parsed.source.commit;
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return value;
+  }
+}
+
 if (checkOnly) {
   let existing = null;
   try {
@@ -65,7 +78,9 @@ if (checkOnly) {
   } catch {
     // Missing is stale.
   }
-  if (existing !== content) {
+  // The commit stamp identifies where a catalog was produced, but a later
+  // unrelated source commit does not make the serialized registry stale.
+  if (withoutVolatileProvenance(existing) !== withoutVolatileProvenance(content)) {
     console.error(`stale: ${target}`);
     process.exit(1);
   }
