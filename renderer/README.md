@@ -79,10 +79,8 @@ The host application provides React, React DOM, Three.js,
 `@react-three/fiber`, and `@react-three/drei`. This prevents duplicate React or
 Three instances in the Brand site bundle.
 
-The package is prepared for a registry release but is not published by a normal
-repository build. See [`../docs/RELEASING.md`](../docs/RELEASING.md) for the
-trusted-publishing workflow and the software-license decision required before
-the first public release.
+Package releases use the repository's trusted-publishing workflow. See
+[`../docs/RELEASING.md`](../docs/RELEASING.md).
 
 ## Credits
 
@@ -91,3 +89,9 @@ Original Metaball Studio concept, design direction, and implementation by
 [Ruhm etc.](https://ruhmetc.com/). Package extraction and engineering are by
 the NAMCHE contributors listed in the repository `AUTHORS.txt` and
 `CONTRIBUTORS.txt`.
+
+## License
+
+MIT. The Namche name and logos remain trademarks; the software license does
+not grant trademark rights or permission to imply endorsement. See
+[`LICENSE`](LICENSE) for details.

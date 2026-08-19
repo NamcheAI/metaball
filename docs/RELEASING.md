@@ -22,13 +22,16 @@ one bootstrap publish by a NAMCHE npm owner:
 The workflow uses Node 24 and the latest npm CLI because npm trusted publishing
 requires Node 22.14+ and npm 11.5.1+. Do not keep a long-lived publish token.
 
-The repository currently marks the code `UNLICENSED`. Confirm the intended
-software license with NAMCHE before the first public registry release; do not
-silently substitute the font repository's OFL, which applies to fonts only.
+Both public packages are licensed under MIT. The editor application is not part
+of that grant. The Namche name and logos remain trademarks, and the package
+license does not grant trademark rights or permission to imply endorsement.
+The SIL Open Font License used by the Namche Shadow project applies to fonts
+only.
 
 ## Release flow
 
-1. Update package versions and changelog/release notes in a pull request.
+1. Update package versions and [`CHANGELOG.md`](../CHANGELOG.md) in a pull
+   request.
 2. Run `npm run release:dry-run` and inspect both file manifests.
 3. Merge only after normal CI and review pass.
 4. In GitHub Actions, run **Release packages** and choose the npm dist-tag.

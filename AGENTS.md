@@ -64,6 +64,10 @@ When changing the renderer:
 Registry releases follow [`docs/RELEASING.md`](docs/RELEASING.md). Do not run
 `npm publish` as an incidental part of feature work.
 
+The core and renderer packages are MIT-licensed. Keep their `LICENSE` files in
+the npm artifacts. The license does not grant trademark rights in the Namche
+name or logos, and the private editor is not part of the public package grant.
+
 ## Editor rules
 
 - The Toolbar edits state; renderers display it. Do not read DOM controls from a

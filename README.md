@@ -178,6 +178,11 @@ preserved in git history (commit `7c580c9`) and on the
 
 ## License
 
-The software is currently marked `UNLICENSED`. Confirm and add the intended
-NAMCHE software license before a public npm release. The SIL Open Font License
-used by Namche Shadow applies to the fonts, not automatically to this codebase.
+The public `@namche/metaball` and `@namche/metaball-react` packages are
+available under the [MIT License](core/LICENSE). Their package distributions
+retain the license and the contributor credits above.
+
+The Namche name and logos remain Namche trademarks. The MIT License does not
+grant trademark rights or permission to imply endorsement. The editor
+application remains private and is not part of the public package license. The
+SIL Open Font License used by Namche Shadow applies to the fonts only.
