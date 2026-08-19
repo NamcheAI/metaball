@@ -7,6 +7,10 @@ The public packages are:
 
 The renderer depends on the core package, so core is always published first.
 
+Both packages use npm trusted publishing through
+`.github/workflows/release-packages.yml`. The repository does not keep an npm
+publish token; GitHub Actions obtains short-lived credentials through OIDC.
+
 ## One-time npm setup
 
 Both package names were unclaimed on npm when this workflow was added. npm can
@@ -15,9 +19,18 @@ one bootstrap publish by a NAMCHE npm owner:
 
 1. Add a short-lived granular token as the repository secret
    `NPM_BOOTSTRAP_TOKEN`.
-2. Run `.github/workflows/release-packages.yml` once.
-3. Configure that exact workflow as trusted publisher for both packages on npm.
-4. Delete `NPM_BOOTSTRAP_TOKEN`; all later publishes use GitHub OIDC.
+2. On the release branch, temporarily add
+   `NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}` to the publish step's
+   environment and dispatch `.github/workflows/release-packages.yml` for that
+   branch once.
+3. Configure that exact workflow as trusted publisher for the new package on
+   npm.
+4. Delete `NPM_BOOTSTRAP_TOKEN` and remove the temporary environment entry;
+   all later publishes use GitHub OIDC.
+
+This bootstrap was completed on 2026-08-19. Do not recreate the secret during
+normal releases. Repeat these steps only when introducing a new npm package
+name that cannot yet be assigned a trusted publisher.
 
 The workflow uses Node 24 and the latest npm CLI because npm trusted publishing
 requires Node 22.14+ and npm 11.5.1+. Do not keep a long-lived publish token.
