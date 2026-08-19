@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import AppCredits from './AppCredits';
 import {
   FLATTEN_EPSILON_MIN,
   FLATTEN_EPSILON_MAX,
@@ -1186,6 +1187,8 @@ export default function Toolbar({
             Clear canvas
           </button>
         </Section>
+
+        <AppCredits />
       </div>
     </aside>
   );
