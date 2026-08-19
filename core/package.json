@@ -15,7 +15,7 @@
     { "name": "BTLG Holding GmbH" }
   ],
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "publishConfig": {
     "access": "public",
     "provenance": true

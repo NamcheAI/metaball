@@ -18,3 +18,9 @@ Full API and geometry documentation live in the repository
 Original Metaball Studio concept, design direction, and implementation by
 [Michael Marte](https://github.com/fizzybubbele) for
 [Ruhm etc.](https://ruhmetc.com/).
+
+## License
+
+MIT. The Namche name and logos remain trademarks; the software license does
+not grant trademark rights or permission to imply endorsement. See
+[`LICENSE`](LICENSE) and the repository credits for details.
