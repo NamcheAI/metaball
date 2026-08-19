@@ -26,11 +26,13 @@ import {
   type PngScale,
   type Size,
   type SurfaceSamplerMode,
+  type SurfaceParameters,
   type Theme,
   type LookMode,
   type LiquidParams,
 } from '../lib/model';
 import { MATERIAL_PRESETS } from '../lib/materialPresets';
+import { SURFACE_PRESETS, getSurfacePreset } from '@namche/metaball-react';
 import { LIQUID_IOR_MAX, LIQUID_IOR_MIN, LIQUID_PRESETS } from '../lib/liquidPresets';
 import { LIQUID_BACKDROPS } from '../lib/liquidBackdrops';
 import { allLoopMotions, type LoopMotionId } from '../lib/motion';
@@ -45,6 +47,10 @@ type Props = {
   onViewChange: (view: ViewMode) => void;
   materialPreset: string;
   onMaterialPresetChange: (id: string) => void;
+  surface: SurfaceParameters;
+  onSurfacePresetChange: (id: string) => void;
+  onSurfaceParamsChange: (patch: Record<string, number>) => void;
+  onSurfaceParamsCommit: () => void;
   lookMode: LookMode;
   onLookModeChange: (mode: LookMode) => void;
   liquidPreset: string;
@@ -288,6 +294,10 @@ export default function Toolbar({
   onViewChange,
   materialPreset,
   onMaterialPresetChange,
+  surface,
+  onSurfacePresetChange,
+  onSurfaceParamsChange,
+  onSurfaceParamsCommit,
   lookMode,
   onLookModeChange,
   liquidPreset,
@@ -654,6 +664,7 @@ export default function Toolbar({
 
             {lookMode === 'material' && (
               <>
+                <p className="hint tight">Body material</p>
                 <div className="button-grid">
                   {MATERIAL_PRESETS.map((preset) => (
                     <button
@@ -668,6 +679,40 @@ export default function Toolbar({
                 <p className="hint tight">
                   {MATERIAL_PRESETS.find((p) => p.id === materialPreset)?.hint ?? ''}
                 </p>
+                <p className="hint tight">Surface strategy</p>
+                <div className="button-grid">
+                  {SURFACE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      className={`chip${surface.kind === preset.id ? ' active' : ''}`}
+                      onClick={() => onSurfacePresetChange(preset.id)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="hint tight">{getSurfacePreset(surface.kind).hint}</p>
+                {getSurfacePreset(surface.kind).controls.length > 0 && (
+                  <details className="advanced-export">
+                    <summary>Fine tune {getSurfacePreset(surface.kind).label.toLowerCase()}</summary>
+                    <div className="slider-group">
+                      {getSurfacePreset(surface.kind).controls.map((control) => (
+                        <div key={control.key}>
+                          <NumberSlider
+                            label={control.label}
+                            value={Number((surface as unknown as Record<string, number>)[control.key])}
+                            min={control.min}
+                            max={control.max}
+                            step={control.step}
+                            onChange={(value) => onSurfaceParamsChange({ [control.key]: value })}
+                            onCommit={onSurfaceParamsCommit}
+                          />
+                          <p className="hint tight">{control.hint}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </>
             )}
 
@@ -1142,9 +1187,9 @@ export default function Toolbar({
           )}
           {view === '3d' && (
             <p className="hint tight">
-              Export GLB = mesh only. Export for Blender = zip (mesh + preview + universal prompt)
-              for Blender MCP — the reference image (attached or bundled) drives the SurfaceDriver +
-              VERIFY LOOP workflow.
+              Export GLB = canonical mesh + base material. Export for Blender also packs the live
+              surface strategy and parameters so shaders, fibers, or lattice geometry can be rebuilt
+              at production quality.
             </p>
           )}
           {view === '2d' && mode === 'metaball' && (

@@ -16,6 +16,7 @@
     "bake": "node scripts/bake-assets.mjs",
     "sync:design": "node scripts/sync-design.mjs",
     "sync:marks": "node scripts/sync-marks.mjs",
+    "sync:surfaces": "node scripts/sync-surfaces.mjs",
     "release:dry-run": "npm pack --dry-run -w @namche/metaball && npm pack --dry-run -w @namche/metaball-react",
     "verify:skill-links": "node scripts/verify-skill-links.mjs"
   },

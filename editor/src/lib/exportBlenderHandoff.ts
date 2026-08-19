@@ -4,6 +4,11 @@ import type { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js'
 import { buildGlbBlob, downloadBlob } from './export3d';
 import { getMaterialPreset } from './materialPresets';
 import { exportMaterialParams } from './organicMaterials';
+import {
+  getSurfacePreset,
+  normalizeSurface,
+  type SurfaceParameters,
+} from '@namche/metaball-react';
 
 /** Presets that ship a look-reference image under public/handoff-refs/. */
 export const HANDOFF_REF_PRESETS = new Set(['resin_moss', 'rock', 'foam']);
@@ -90,10 +95,13 @@ async function fetchBundledRef(presetId: string): Promise<RefImageBytes | null> 
 function buildHandoffMarkdown(opts: {
   presetId: string;
   refFileName: string | null;
+  surface: SurfaceParameters;
 }): string {
   const preset = getMaterialPreset(opts.presetId);
   const p = exportMaterialParams(opts.presetId);
   const ref = opts.refFileName;
+  const surface = normalizeSurface(opts.surface);
+  const surfacePreset = getSurfacePreset(surface.kind);
 
   const paramLines = [
     `- Base Color: \`${p.color}\``,
@@ -109,11 +117,23 @@ function buildHandoffMarkdown(opts: {
   if (p.clearcoat != null) paramLines.push(`- Clearcoat: \`${p.clearcoat}\``);
   if (p.sheen != null) paramLines.push(`- Sheen: \`${p.sheen}\``);
 
+  const topologyTreatment = surface.kind === 'smooth' || surface.kind === 'pearl'
+    ? `Preserve the object's exact shape, form, proportions, and topology.`
+    : `Preserve the object's overall silhouette, proportions, and camera, while building the topology required by the requested surface strategy.`;
+
   const lookGoal = ref
-    ? `Apply the surface texture, material, and color palette of \`${ref}\` onto the mesh in \`mesh.glb\`. Preserve the object's exact shape, form, and proportions — do not alter its geometry. Use \`obj-preview.png\` only as a camera/shape check (live stand-in material). Match the lighting mood from \`${ref}\` where relevant.
+    ? `Apply the surface texture, material, and color palette of \`${ref}\` onto the mesh in \`mesh.glb\`. ${topologyTreatment} Use \`obj-preview.png\` only as a camera/shape check (live stand-in material). Match the lighting mood from \`${ref}\` where relevant.
 
 Follow the universal staged workflow (optional \`SPEED_RUN_DRAFT\` → SurfaceDriver + VERIFY LOOP) — geometry first, then shading that reuses the same Factor, then lighting only if asked. Full prompt: \`docs/blender-texture-transfer-prompt.md\`. Don't bundle stages into one pass.`
-    : `Keep the exported Principled-friendly base from \`mesh.glb\` (params below). Use \`obj-preview.png\` as a shape/camera check. Improve look in Cycles if needed, but do not change the mesh topology.`;
+    : `Keep the exported Principled-friendly base from \`mesh.glb\` (params below). Use \`obj-preview.png\` as a shape/camera check. ${topologyTreatment}`;
+
+  const surfaceInstructions = surface.kind === 'smooth'
+    ? `Keep the canonical smooth isosurface.`
+    : surface.kind === 'pearl'
+      ? `Build a UV-free nacre shader: layered low-amplitude object-space relief, thin-film iridescence, coat, and roughness variation. Do not add pores or fibers. Preserve the silhouette.`
+      : surface.kind === 'coral'
+        ? `The live shader is only a fast preview. Build production coral as membrane-first geometry: welded envelope → thin shell → elongated windows that break through the shell → restrained ridge nubs. Do not drill a thick solid and do not use disconnected Points-to-Volume beads. Preserve the overall mark silhouette while allowing real open cells.`
+        : `Build ${surface.kind} as a hair-curves / instanced-fiber system attached to the welded envelope. Drive density, length, clumping, curl, gravity, and tonal variation from \`surface.json\`; do not fake it with pore displacement.`;
 
   return `# Metaball → Blender handoff
 
@@ -123,6 +143,13 @@ Live stand-in: **${preset.label}** (\`${opts.presetId}\`) — editor preview / G
 - \`mesh.glb\` — exact metaball isosurface + base Principled params
 - \`obj-preview.png\` — live editor 3D preview (geometry / framing)
 ${ref ? `- \`${ref}\` — material / lighting look target\n` : ''}- \`HANDOFF.md\` — this file
+- \`surface.json\` — normalized, strategy-specific surface parameters
+
+## Surface strategy
+
+**${surfacePreset.label}** (\`${surface.kind}\`, preview: \`${surfacePreset.strategy}\`${surfacePreset.productionStrategy ? `, production: \`${surfacePreset.productionStrategy}\`` : ''})
+
+${surfaceInstructions}
 
 ## Prompt for Blender MCP
 
@@ -154,6 +181,8 @@ export type BlenderHandoffOptions = {
   invalidate?: () => void;
   /** User-attached reference image; overrides the bundled default for any preset. */
   customRef?: RefImageBytes | null;
+  /** Strategy-specific live preview controls, recreated properly in Blender. */
+  surface?: SurfaceParameters;
 };
 
 /**
@@ -168,6 +197,7 @@ export async function exportBlenderHandoff(opts: BlenderHandoffOptions): Promise
     canvas,
     invalidate,
     customRef,
+    surface = normalizeSurface('smooth'),
   } = opts;
 
   if (invalidate) {
@@ -192,6 +222,7 @@ export async function exportBlenderHandoff(opts: BlenderHandoffOptions): Promise
   const handoffMd = buildHandoffMarkdown({
     presetId: presetIdForDocs,
     refFileName: ref?.fileName ?? null,
+    surface,
   });
   const mdBytes = new TextEncoder().encode(handoffMd);
 
@@ -199,6 +230,19 @@ export async function exportBlenderHandoff(opts: BlenderHandoffOptions): Promise
     'mesh.glb': glbBytes,
     'obj-preview.png': previewBytes,
     'HANDOFF.md': mdBytes,
+    'surface.json': new TextEncoder().encode(
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          preset: getSurfacePreset(surface.kind).id,
+          previewStrategy: getSurfacePreset(surface.kind).strategy,
+          productionStrategy: getSurfacePreset(surface.kind).productionStrategy ?? getSurfacePreset(surface.kind).strategy,
+          parameters: surface,
+        },
+        null,
+        2,
+      ) + '\n',
+    ),
   };
   if (ref) {
     files[ref.fileName] = ref.bytes;

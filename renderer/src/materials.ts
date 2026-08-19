@@ -11,6 +11,11 @@ export const MATERIAL_PRESET_IDS = [
   'rock',
   'foam',
   'mycelium',
+  'pearl',
+  'coral_porcelain',
+  'moss',
+  'grass',
+  'fur',
 ] as const;
 
 export type MaterialPresetId = (typeof MATERIAL_PRESET_IDS)[number];
@@ -112,6 +117,67 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
       attenuationDistance: 0.55, sheen: 0.4, sheenColor: '#6b3a6e',
       sheenRoughness: 0.7, clearcoat: 0.06, clearcoatRoughness: 0.45,
       envMapIntensity: 0.55,
+    },
+  },
+  {
+    id: 'pearl',
+    label: 'Perlmutt',
+    hint: 'Luminous nacre with a restrained blue-violet iridescence.',
+    needsEnvironment: true,
+    params: {
+      color: '#fff8ef', roughness: 0.16, metalness: 0, transmission: 0.12,
+      ior: 1.53, thickness: 0.75, attenuationColor: '#e7d9ff',
+      attenuationDistance: 1.8, clearcoat: 0.72, clearcoatRoughness: 0.12,
+      sheen: 0.32, sheenColor: '#b9cbff', sheenRoughness: 0.42,
+      iridescence: 0.82, iridescenceIOR: 1.3,
+      iridescenceThicknessRange: [110, 520], envMapIntensity: 1.05,
+    },
+  },
+  {
+    id: 'coral_porcelain',
+    label: 'Korallenporzellan',
+    hint: 'Warm mineral body with a cool nacre glaze for porous coral surfaces.',
+    needsEnvironment: true,
+    params: {
+      color: '#eee3d5', roughness: 0.72, metalness: 0,
+      ior: 1.46, thickness: 0.9, attenuationColor: '#e8ddca',
+      attenuationDistance: 1.1, clearcoat: 0.15, clearcoatRoughness: 0.38,
+      sheen: 0.22, sheenColor: '#bfcafa', sheenRoughness: 0.54,
+      iridescence: 0.12, iridescenceIOR: 1.25,
+      iridescenceThicknessRange: [90, 360], envMapIntensity: 0.45,
+    },
+  },
+  {
+    id: 'moss',
+    label: 'Moos',
+    hint: 'Deep living green base for short clustered fibers.',
+    needsEnvironment: true,
+    params: {
+      color: '#405b32', roughness: 0.94, metalness: 0,
+      sheen: 0.24, sheenColor: '#98ad6d', sheenRoughness: 0.9,
+      envMapIntensity: 0.28,
+    },
+  },
+  {
+    id: 'grass',
+    label: 'Gras',
+    hint: 'Fresh alpine green base for directional blades.',
+    needsEnvironment: true,
+    params: {
+      color: '#587a3f', roughness: 0.84, metalness: 0,
+      sheen: 0.2, sheenColor: '#b4cc78', sheenRoughness: 0.82,
+      envMapIntensity: 0.34,
+    },
+  },
+  {
+    id: 'fur',
+    label: 'Fell',
+    hint: 'Warm neutral coat base for dense soft fibers.',
+    needsEnvironment: true,
+    params: {
+      color: '#b79e87', roughness: 0.88, metalness: 0,
+      sheen: 0.72, sheenColor: '#f1dfcc', sheenRoughness: 0.68,
+      envMapIntensity: 0.42,
     },
   },
 ];
