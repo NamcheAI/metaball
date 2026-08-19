@@ -15,4 +15,5 @@ test('the editor credits link the repository and original design collaborators',
   assert.match(html, /https:\/\/ruhmetc\.com\//);
   assert.match(html, /Michael Marte/);
   assert.match(html, /Ruhm etc\./);
+  assert.match(html, /Original Studio by/);
 });

@@ -6,11 +6,11 @@ export default function AppCredits() {
       </a>
       <span aria-hidden="true">·</span>
       <span>
-        Original Metaball Studio by{' '}
+        Original Studio by{' '}
         <a href="https://github.com/fizzybubbele" target="_blank" rel="noreferrer">
           Michael Marte
         </a>{' '}
-        for{' '}
+        /{' '}
         <a href="https://ruhmetc.com/" target="_blank" rel="noreferrer">
           Ruhm etc.
         </a>
