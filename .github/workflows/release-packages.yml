@@ -37,9 +37,6 @@ jobs:
       - name: Publish unpublished package versions
         env:
           NPM_TAG: ${{ inputs.npm_tag }}
-          # Required only for the first publish of each new package name. Once
-          # npm trusted publishers are configured, remove this repository secret.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
         run: |
           publish_if_missing() {
             package_name="$1"
