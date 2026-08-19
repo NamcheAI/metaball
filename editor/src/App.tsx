@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AppCredits from './components/AppCredits';
 import MetaballCanvas from './components/MetaballCanvas';
 import Toolbar from './components/Toolbar';
 import { copySvgToClipboard, exportPng, exportSvg, type FlattenSpec } from './lib/export';
@@ -1004,6 +1005,7 @@ export default function App() {
         </div>
       </main>
 
+      <AppCredits />
     </div>
   );
 }
