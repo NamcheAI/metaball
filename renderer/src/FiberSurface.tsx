@@ -113,6 +113,7 @@ export function FiberSurface({
   const mesh = useMemo(() => buildFiberMesh(source, surface), [source, surface, revision]);
   useEffect(() => {
     return () => {
+      mesh?.dispose();
       mesh?.geometry.dispose();
       (mesh?.material as THREE.Material | undefined)?.dispose();
     };
