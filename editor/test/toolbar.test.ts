@@ -17,7 +17,6 @@ function renderToolbar(view: '2d' | '3d', mode: 'metaball' | 'graph' = 'metaball
     view,
     mode,
     materialPreset: doc.materialPreset,
-    surface: doc.surface,
     lookMode: doc.lookMode,
     liquidPreset: doc.liquidPreset,
     liquidBackdrop: doc.liquidBackdrop,
@@ -77,9 +76,6 @@ test('3D exposes materials and advanced sampling, not raster controls', () => {
   const html = renderToolbar('3d');
   assert.match(html, />Organic</);
   assert.match(html, />Liquid</);
-  assert.match(html, /Surface strategy/);
-  assert.match(html, />Pearl</);
-  assert.match(html, />Moss</);
   assert.match(html, /Surface sampling/);
   assert.doesNotMatch(html, /Namche raster/);
   assert.doesNotMatch(html, />Form</);

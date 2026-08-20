@@ -905,7 +905,6 @@ function PublicMaterialPreview({
       style={{ width: '100%', height: '100%', aspectRatio: 'auto' }}
       shape={shape}
       material={getMaterialPreset(doc.materialPreset).id}
-      surface={doc.surface}
       background="#ececf0"
       quality="high"
       renderContinuously={continuous}

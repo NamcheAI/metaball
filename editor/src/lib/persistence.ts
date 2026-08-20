@@ -41,7 +41,6 @@ import {
 } from './liquidPresets';
 import { normalizeLiquidBackdropId } from './liquidBackdrops';
 import { getMaterialPreset } from './materialPresets';
-import { normalizeSurface, type SurfaceInput } from '@namche/metaball-react';
 
 export const STORAGE_KEY = 'metaball-editor-document';
 
@@ -215,11 +214,6 @@ export function normalizeDocument(input: unknown): Document {
       ),
     ),
     materialPreset,
-    surface: normalizeSurface(
-      isRecord(input.surface) && typeof input.surface.kind === 'string'
-        ? (input.surface as SurfaceInput)
-        : 'smooth',
-    ),
     lookMode,
     liquidPreset: liquidPreset || DEFAULT_LIQUID_PRESET,
     liquidParams,

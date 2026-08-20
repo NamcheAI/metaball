@@ -23,12 +23,6 @@ The reusable Brand-page component. It maps a core preset or `MetaballShape` to
 a Three.js Marching Cubes field, frames the camera and applies a lightweight
 physical material. It owns its canvas and all disposable Three.js resources.
 
-Its surface registry separates media by rendering strategy: UV-free shader
-surfaces (for example pearl), deterministic instanced fibers (moss, grass,
-fur), and fast previews whose production version requires real topology
-(coral). Only scale, intensity, and seed are shared; each strategy owns its
-meaningful controls. See [`SURFACES.md`](SURFACES.md).
-
 The renderer intentionally exposes a small API: shape, material, background,
 interaction, rotation, quality and sizing. It has no editor toolbar, persistence,
 liquid controls, surface sampler, export workflow or global live-mesh singleton.

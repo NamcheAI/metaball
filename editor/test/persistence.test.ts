@@ -60,26 +60,6 @@ test('new documents use Namche Loop, raster on, and opt-in surface sampling', ()
   assert.equal(doc.rasterEnabled, true);
   assert.equal(doc.surfaceSamplerEnabled, false);
   assert.equal(doc.fullGrid, false);
-  assert.equal(doc.surface.kind, 'smooth');
-});
-
-test('surface parameters are strategy-specific and sanitized on import', () => {
-  const coral = normalizeDocument({
-    surface: { kind: 'coral', porosityAmount: 7, poreSize: -1, nubDensity: 0.4 },
-  }).surface;
-  assert.equal(coral.kind, 'coral');
-  if (coral.kind !== 'coral') throw new Error('expected coral surface');
-  assert.equal(coral.porosityAmount, 1);
-  assert.equal(coral.poreSize, 0.01);
-  assert.equal(coral.nubDensity, 0.4);
-
-  const fur = normalizeDocument({
-    surface: { kind: 'fur', density: 0.9, length: 0.45, poreSize: 1 },
-  }).surface;
-  assert.equal(fur.kind, 'fur');
-  if (fur.kind !== 'fur') throw new Error('expected fur surface');
-  assert.equal(fur.density, 0.9);
-  assert.equal('poreSize' in fur, false);
 });
 
 test('raster visibility survives document normalization', () => {
