@@ -28,7 +28,6 @@ Do not edit generated `dist/` files. The build creates them.
 | --- | --- |
 | the 2D mark geometry, presets, rasterization, or SVG output | `core/src/` |
 | the reusable 3D viewer, camera, field, or organic material presets | `renderer/src/` |
-| parametric 3D surface strategies and their controls | `renderer/src/surfaces.ts` and `renderer/src/FiberSurface.tsx` |
 | editor controls, document state, motion, liquid, export, or Blender handoff | `editor/src/` |
 | app colors and typography | `editor/public/theme.css` using tokens from `../design/tokens/` |
 | Blender-agent instructions | `.cursor/skills/` and `editor/docs/` |
@@ -60,8 +59,6 @@ When changing the renderer:
 - keep React, Three, R3F and Drei as peer dependencies;
 - avoid Studio-only dependencies and post-processing in the default path;
 - update `renderer/README.md` and its public types when props change;
-- keep surface parameters strategy-specific; only `scale`, `intensity`, and `seed` are common;
-- distinguish fast live previews from exported topology (notably coral and fibers);
 - test Next.js examples as client components (`dynamic(..., { ssr: false })`).
 
 Registry releases follow [`docs/RELEASING.md`](docs/RELEASING.md). Do not run
@@ -82,8 +79,6 @@ name or logos, and the private editor is not part of the public package grant.
 - Keep 3D code lazy-loaded so the 2D editor does not download Three.js.
 - Persisted document changes require a version/migration update in
   `editor/src/lib/persistence.ts` and tests.
-- Render surface controls from the public registry. Do not hard-code pore,
-  fiber, or nacre sliders into unrelated presets.
 
 ## Brand and credits
 

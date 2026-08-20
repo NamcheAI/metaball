@@ -21,11 +21,6 @@ import {
   type HistoryState,
 } from './lib/history';
 import { generate } from '@namche/metaball';
-import {
-  getSurfacePreset,
-  normalizeSurface,
-  type SurfaceInput,
-} from '@namche/metaball-react';
 import { toGenerateParams } from './lib/coreDocument';
 import {
   clampOffset,
@@ -519,7 +514,6 @@ export default function App() {
             canvas,
             invalidate: handle?.invalidate,
             customRef: customRefImage,
-            surface: doc.lookMode === 'liquid' ? normalizeSurface('smooth') : doc.surface,
           }),
         )
         .catch((err: unknown) => {
@@ -800,24 +794,6 @@ export default function App() {
         onViewChange={setView}
         materialPreset={doc.materialPreset}
         onMaterialPresetChange={(id) => updateDocField('materialPreset', id)}
-        surface={doc.surface}
-        onSurfacePresetChange={(id) => {
-          const preset = getSurfacePreset(id);
-          commit({
-            ...cloneDocument(doc),
-            surface: normalizeSurface(preset.id),
-            materialPreset: preset.defaultMaterial,
-            lookMode: 'material',
-          });
-        }}
-        onSurfaceParamsChange={(patch) =>
-          scrub((d) => ({
-            ...d,
-            lookMode: 'material',
-            surface: normalizeSurface({ ...d.surface, ...patch } as SurfaceInput),
-          }))
-        }
-        onSurfaceParamsCommit={endScrub}
         lookMode={doc.lookMode}
         onLookModeChange={(mode: LookMode) => updateDocField('lookMode', mode)}
         liquidPreset={doc.liquidPreset}

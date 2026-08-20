@@ -25,31 +25,6 @@ export function BrandMark() {
 The component supplies a square aspect ratio by default. Pass `width`, `height`
 or `aspectRatio` through `style` to fit the host layout.
 
-## Parametric surfaces
-
-`surface` selects an independent, UV-free surface strategy. A preset supplies
-its appropriate base material when `material` is omitted:
-
-```tsx
-<Metaball3D preset="loop" surface="pearl" autoRotate />
-
-<Metaball3D
-  preset="loop"
-  surface={{ kind: 'fur', density: 0.9, length: 0.42, curl: 0.65 }}
-/>
-```
-
-Included strategies are `smooth`, `pearl`, `coral`, `moss`, `grass`, and
-`fur`. Their controls are intentionally different: pearl exposes nacre-layer
-variation, coral exposes cell growth, and fiber surfaces expose density,
-length, clumping, curl, and gravity. Use `SURFACE_PRESETS` to build a matching
-control panel and `normalizeSurface()` before persisting external input.
-
-Coral is a performant relief preview in the browser; actual open cells require
-the Blender lattice handoff. Fiber instances and shader displacement are live
-layers and are not silently baked into the mesh exposed by the component ref.
-See [`../docs/SURFACES.md`](../docs/SURFACES.md).
-
 Static scenes render only when their state changes. Set `autoRotate` for the
 built-in camera rotation, or `renderContinuously` when the host animates the
 shape itself and needs a frame for every update.

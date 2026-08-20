@@ -11,7 +11,6 @@ these over generic Blender / Meshy / texture-diffusion guides.
 | [metaball-diffgrow](metaball-diffgrow/SKILL.md) | Optional differential-growth organic pass |
 | [metaball-beauty-cam](metaball-beauty-cam/SKILL.md) | Beauty stills + turntable after materials |
 | [metaball-stablegen](metaball-stablegen/SKILL.md) | Optional StableGen bake spike (opt-in only) |
-| [metaball-weave-surfaces](metaball-weave-surfaces/SKILL.md) | Figma Weave art-direction runs + reproducible design assets |
 
 **WORKDIR (porous coral):** `blender-handoff-new/` — see skill `metaball-porous-lattice` for lessons + file table.  
 `blender-handoff/` is the older fels rock package only.
