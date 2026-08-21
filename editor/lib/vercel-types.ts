@@ -10,6 +10,6 @@ export interface VercelRequest {
 export interface VercelResponse {
   setHeader(name: string, value: string): void;
   status(code: number): VercelResponse;
-  end(): VercelResponse;
+  end(body?: string): VercelResponse;
   redirect(code: number, location: string): VercelResponse;
 }

@@ -394,6 +394,124 @@ button.danger:active:not(:disabled) {
   border-top: none;
 }
 
+.ai-render-panel,
+.ai-field,
+.ai-reference,
+.ai-render-result {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-render-panel {
+  gap: 14px;
+}
+
+.ai-field > span,
+.ai-range label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ai-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  background: var(--panel);
+  font: 11px/1.45 var(--font-mono);
+}
+
+.ai-field textarea:focus-visible,
+.ai-render-options select:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.ai-field textarea:disabled {
+  opacity: 0.45;
+}
+
+.ai-range {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px 10px;
+}
+
+.ai-range output {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text);
+}
+
+.ai-range input[type='range'] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+}
+
+.ai-render-options {
+  display: grid;
+  gap: 7px;
+}
+
+.ai-render-action {
+  width: 100%;
+  min-height: 38px;
+  border-color: var(--text);
+  color: var(--panel);
+  background: var(--text);
+  font-weight: 600;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ai-render-action:hover:not(:disabled) {
+    opacity: 0.82;
+  }
+}
+
+.ai-message {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.ai-message.error {
+  color: var(--danger);
+}
+
+.ai-render-result {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xs);
+}
+
+.ai-render-result img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--page-bg);
+}
+
+.ai-render-result figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--panel-border);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted);
+}
+
 .text-link {
   color: var(--muted);
   font-size: 0.85rem;

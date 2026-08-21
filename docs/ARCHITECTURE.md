@@ -30,12 +30,20 @@ liquid controls, surface sampler, export workflow or global live-mesh singleton.
 ## Studio — `editor/`
 
 The application layer. It owns the `Document`, history, persistence, 2D graph
-authoring, motion, liquid looks, surface sampling, GLB/PNG/SVG/JSON export and
-Blender handoff. `Metaball3DPreview` is an adapter:
+authoring, motion, liquid looks, surface sampling, AI material studies,
+GLB/PNG/SVG/JSON export and Blender handoff. `Metaball3DPreview` is an adapter:
 
 - ordinary physical materials render through public `Metaball3D`;
 - liquid and sampler modes use the advanced Studio scene;
 - both paths share renderer field, material and camera code.
+
+High-fidelity AI material rendering is deliberately a Studio workflow, not a
+browser renderer feature. The browser captures the current 3D canvas and may
+attach a separate material reference. The authenticated `/api/render` endpoint
+normalizes generic intent parameters, composes explicit image roles and calls a
+provider adapter with its server-only credential. The generated image is a
+material study of that camera view; it is not a new mesh or a reusable texture
+map. See [`AI_RENDERING.md`](AI_RENDERING.md).
 
 ## Performance contract
 
@@ -52,5 +60,6 @@ Blender handoff. `Metaball3DPreview` is an adapter:
 
 Add a new canonical shape in `core/src/presets.ts`. Add a broadly reusable
 physical material in `renderer/src/materials.ts`. Add experimental looks,
-editor-only switches and export workflows in `editor/`. If a feature needs the
-whole Studio `Document`, it is not part of the public renderer API.
+editor-only switches, provider-backed image generation and export workflows in
+`editor/`. If a feature needs the whole Studio `Document`, a private credential
+or a paid API, it is not part of the public renderer API.

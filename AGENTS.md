@@ -29,6 +29,7 @@ Do not edit generated `dist/` files. The build creates them.
 | the 2D mark geometry, presets, rasterization, or SVG output | `core/src/` |
 | the reusable 3D viewer, camera, field, or organic material presets | `renderer/src/` |
 | editor controls, document state, motion, liquid, export, or Blender handoff | `editor/src/` |
+| AI render contracts, server adapters, or API routes | `editor/lib/` and `editor/api/` |
 | app colors and typography | `editor/public/theme.css` using tokens from `../design/tokens/` |
 | Blender-agent instructions | `.cursor/skills/` and `editor/docs/` |
 
@@ -77,6 +78,12 @@ name or logos, and the private editor is not part of the public package grant.
 - Expensive overlays stay opt-in and must dispose geometry, materials, timers,
   animation frames and event listeners on unmount.
 - Keep 3D code lazy-loaded so the 2D editor does not download Three.js.
+- Keep AI/provider credentials on the server. Never expose them through
+  `VITE_*`, browser state, client bundles, exported documents, or logs.
+- Treat AI material rendering as a camera-view study: browser geometry remains
+  canonical, while provider prompts and parameters stay generic enough for
+  coral, nacre, moss, fur, stone, metal, and future material families.
+- Mock paid providers in automated tests. Never spend API credits in CI.
 - Persisted document changes require a version/migration update in
   `editor/src/lib/persistence.ts` and tests.
 

@@ -53,6 +53,8 @@ function renderToolbar(view: '2d' | '3d', mode: 'metaball' | 'graph' = 'metaball
     canUndo: false,
     canRedo: false,
     activePresetId: 'loop',
+    canAIRender: true,
+    onAIRender: async () => ({ image: '', model: 'test', prompt: 'test' }),
     refImageName: null,
     growing: false,
     canGrow: true,
@@ -70,6 +72,7 @@ test('2D exposes flat appearance and raster controls, not materials', () => {
   assert.match(html, />Form</);
   assert.doesNotMatch(html, />Organic</);
   assert.doesNotMatch(html, /Surface sampling/);
+  assert.doesNotMatch(html, /AI material render/);
 });
 
 test('3D exposes materials and advanced sampling, not raster controls', () => {
@@ -77,6 +80,8 @@ test('3D exposes materials and advanced sampling, not raster controls', () => {
   assert.match(html, />Organic</);
   assert.match(html, />Liquid</);
   assert.match(html, /Surface sampling/);
+  assert.match(html, /AI material render/);
+  assert.match(html, /Render with AI/);
   assert.doesNotMatch(html, /Namche raster/);
   assert.doesNotMatch(html, />Form</);
 });
