@@ -54,6 +54,8 @@ import { downloadJson, initialDocument, parseDocumentJson, saveDocument } from '
 import type { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { getLiveMarchingCubes, type Canvas3DHandle } from './lib/canvas3dHandle';
 import type { RefImageBytes } from './lib/exportBlenderHandoff';
+import { renderAIMaterial } from './lib/aiRender';
+import type { AIRenderParams, AIRenderResult } from '../lib/ai-render-contract';
 import './App.css';
 
 // Loaded on demand: keeps three.js / react-three-fiber out of the initial
@@ -523,6 +525,31 @@ export default function App() {
     });
   };
 
+  const doAIRender = async (params: AIRenderParams): Promise<AIRenderResult> => {
+    stopGrowth();
+    stopMotion();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const mesh = resolveLiveMesh();
+    const handle = canvas3dHandleRef.current;
+    const canvas =
+      handle?.canvas ??
+      (document.querySelector('.metaball-3d-canvas canvas') as HTMLCanvasElement | null);
+    if (!mesh || mesh.count === 0) {
+      throw new Error('Switch to 3D view and wait for the shape to build, then try again.');
+    }
+    if (!canvas) {
+      throw new Error('The 3D canvas is not ready yet — wait a moment and try again.');
+    }
+
+    return renderAIMaterial({
+      canvas,
+      params,
+      materialReference: customRefImage,
+      invalidate: handle?.invalidate,
+    });
+  };
+
   const doImportJson = (json: string) => {
     try {
       const imported = parseDocumentJson(json);
@@ -906,6 +933,8 @@ export default function App() {
         onExportJson={doExportJson}
         onExportGlb={doExportGlb}
         onExportBlenderHandoff={doExportBlenderHandoff}
+        canAIRender={view === '3d'}
+        onAIRender={doAIRender}
         refImageName={customRefImage?.fileName ?? null}
         onAttachRefImageClick={() => refImageInputRef.current?.click()}
         onClearRefImage={() => setCustomRefImage(null)}

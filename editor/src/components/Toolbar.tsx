@@ -1,5 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import AppCredits from './AppCredits';
+import AIRenderPanel from './AIRenderPanel';
+import type { AIRenderParams, AIRenderResult } from '../../lib/ai-render-contract';
 import {
   FLATTEN_EPSILON_MIN,
   FLATTEN_EPSILON_MAX,
@@ -139,6 +141,8 @@ type Props = {
   onExportJson: () => void;
   onExportGlb: () => void;
   onExportBlenderHandoff: () => void;
+  canAIRender: boolean;
+  onAIRender: (params: AIRenderParams) => Promise<AIRenderResult>;
   refImageName: string | null;
   onAttachRefImageClick: () => void;
   onClearRefImage: () => void;
@@ -382,6 +386,8 @@ export default function Toolbar({
   onExportJson,
   onExportGlb,
   onExportBlenderHandoff,
+  canAIRender,
+  onAIRender,
   refImageName,
   onAttachRefImageClick,
   onClearRefImage,
@@ -1053,6 +1059,18 @@ export default function Toolbar({
           </Section>
         )}
 
+        {view === '3d' && (
+          <Section title="AI material render">
+            <AIRenderPanel
+              canRender={canAIRender}
+              referenceName={refImageName}
+              onAttachReference={onAttachRefImageClick}
+              onClearReference={onClearRefImage}
+              onRender={onAIRender}
+            />
+          </Section>
+        )}
+
         <Section title="Export">
           {view === '2d' && mode === 'metaball' && (
             <>
@@ -1124,27 +1142,9 @@ export default function Toolbar({
             </p>
           )}
           {view === '3d' && (
-            <div className="slider-group">
-              <p className="hint tight">
-                {refImageName
-                  ? `Reference image attached: ${refImageName}. Overrides the bundled default when exporting.`
-                  : 'No reference image attached — Harz+Moos/Fels/Schaum pack a bundled ref; attach your own to steer any material.'}
-              </p>
-              <div className="button-grid">
-                <button className="chip" onClick={onAttachRefImageClick}>
-                  {refImageName ? 'Replace reference image' : 'Attach reference image'}
-                </button>
-                <button className="chip" disabled={!refImageName} onClick={onClearRefImage}>
-                  Clear reference image
-                </button>
-              </div>
-            </div>
-          )}
-          {view === '3d' && (
             <p className="hint tight">
               Export GLB = mesh only. Export for Blender = zip (mesh + preview + universal prompt)
-              for Blender MCP — the reference image (attached or bundled) drives the SurfaceDriver +
-              VERIFY LOOP workflow.
+              for Blender MCP. The material reference above is reused for that handoff.
             </p>
           )}
           {view === '2d' && mode === 'metaball' && (

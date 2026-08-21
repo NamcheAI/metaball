@@ -9,6 +9,12 @@ or as organic **metaballs** (gooey blend). Export to SVG, PNG, or JSON. A
 **3D view** shows the same mark as a live, orbitable isosurface with a choice
 of organic material presets.
 
+For finishes that cannot be simulated convincingly in a lightweight browser
+shader, Studio can send the current camera view plus an optional material
+reference to a server-side image model and return a high-fidelity material
+study. This is pay-per-render API usage; no provider credential enters the
+browser bundle.
+
 ## Getting started
 
 ```bash
@@ -46,6 +52,8 @@ In Project → Settings → Environment Variables, add:
 | `AUTH_SECRET`              | Long random string (e.g. `openssl rand -hex 32`) |
 | `UPSTASH_REDIS_REST_URL`   | REST URL of the shared Upstash Redis database    |
 | `UPSTASH_REDIS_REST_TOKEN` | REST token of the shared Upstash Redis database  |
+| `OPENAI_API_KEY`           | Optional server-only key for AI material renders |
+| `OPENAI_IMAGE_MODEL`       | Optional model override (default `gpt-image-2`)  |
 
 Apply to **Production** (and Preview if you want PIN on preview URLs too).
 Create or connect an Upstash Redis database through the Vercel Marketplace first;
@@ -68,6 +76,8 @@ npx vercel --prod
 - `vercel dev` — full stack with middleware + login (reads `.env.local`).
 
 Copy `.env.example` to `.env.local` and fill in values to test login locally.
+The same file configures AI material renders for the normal Vite dev server;
+see [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
 
 ### How it works
 
@@ -146,6 +156,11 @@ instead of the flat SVG blur trick.
   optical controls collapsed until they are needed.
 - **Surface sampling** – an opt-in advanced overlay. It is off by default so the
   first 3D render does not allocate and animate thousands of points and spheres.
+- **AI material render** – captures the current object and camera as the locked
+  shape reference, combines it with a generic material direction and optional
+  reference image, then calls the configured image model through the protected
+  server route. Shape fidelity and material influence are independent controls.
+  The result is a rendered study, not a modified mesh or UV texture map.
 - **Export GLB** – downloads the isosurface plus Principled-friendly material
   params (color, roughness, metalness, transmission, IOR, clearcoat, sheen, …).
 - **Export for Blender** – downloads `metaball-blender-handoff.zip` for Blender
@@ -154,9 +169,9 @@ instead of the flat SVG blur trick.
   bundled for Harz+Moos / Fels / Schaum, or your own attached image for **any**
   material. Drop the zip into chat with Blender MCP open; follow
   [docs/blender-texture-transfer-prompt.md](docs/blender-texture-transfer-prompt.md).
-- **Attach reference image** – in the Export section, attach any image as the
-  material/lighting look target; it overrides the bundled default when set.
-  Every export with a ref uses the same universal staged prompt.
+- **Attach material image** – in AI material render, attach any image as the
+  material/lighting look target. The same reference is reused by the optional
+  Blender handoff.
 - Drag to orbit the camera; scroll/pinch to zoom. Raster and flat mark controls are
   hidden in 3D; material controls are hidden in 2D so the two appearance systems
   cannot conflict.
@@ -226,12 +241,14 @@ src/
     export.ts                SVG / PNG export + clipboard
     export3d.ts              GLB export of the live isosurface
     exportBlenderHandoff.ts  Zip package for Blender MCP handoff
+    aiRender.ts              canvas capture + protected API client
     metaball3d.ts            Studio document -> public renderer shape adapter
     materialPresets.ts       compatibility exports from @namche/metaball-react
     organicMaterials.ts      compatibility exports for GLB material params
 public/
   handoff-refs/              Look refs for Harz+Moos / Fels / Schaum
 docs/
+  ../docs/AI_RENDERING.md            server-side AI image material pipeline
   blender-materials.md              Canonical high-end materials after GLB import
   blender-texture-transfer-prompt.md  Generic staged prompt for any object/reference pair
 ```

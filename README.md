@@ -21,7 +21,7 @@ npm run lint     # editor
 | --------------- | ---------------------------------------------------------------------------- |
 | `core/`         | `@namche/metaball` — the engine. Dependency-free, deterministic, TypeScript. |
 | `renderer/`     | `@namche/metaball-react` — embeddable React/Three.js Brand-page viewer.      |
-| `editor/`       | Metaball Studio: 2D authoring, live 3D, motion, materials, and export.       |
+| `editor/`       | Metaball Studio: 2D authoring, live 3D, AI material studies, and export.     |
 | `assets/marks/` | The canonical marks, baked to SVG + JSON.                                    |
 | `scripts/`      | `bake-assets.mjs`, `sync-design.mjs`.                                        |
 
@@ -30,8 +30,8 @@ not two. A change to how marks are drawn shows up in the editor, in the baked
 assets and in the design system together, or not at all.
 
 The normal 3D material view also runs through the public renderer package.
-Studio adds its advanced liquid, surface-sampler, export, and Blender workflows
-around that component rather than exposing the editor document as a public API.
+Studio adds its advanced liquid, surface-sampler, AI material-render and export
+workflows around that component rather than exposing the editor document as a public API.
 See [`renderer/README.md`](renderer/README.md) for Brand-page integration and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the dependency boundaries.
 
@@ -43,6 +43,7 @@ views:
 - the canonical 2D graph/metaball renderer and flattened SVG/PNG export;
 - a live Three.js Marching Cubes isosurface with material and liquid looks;
 - growth plus deterministic loop motions;
+- server-side, prompt-driven high-fidelity material studies from the current 3D view;
 - GLB export and a Blender handoff bundle with preview and material reference.
 
 Three.js is loaded only when the 3D view is opened. Studio-only settings extend
