@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   BRANDMARK_PATH,
+  BRANDMARK_PRESET_PATH,
   DEFAULT_PRESET_ID,
   generate,
   generateMaskToken,
@@ -20,12 +21,22 @@ test('the default is the current Namche Loop', () => {
   assert.equal(explicit.viewBox, `0 0 ${VIEWBOX} ${VIEWBOX}`)
 })
 
-test('the legacy brandmark preset keeps its exact approved vector', () => {
+test('the classic preset keeps the approved silhouette in the common inner frame', () => {
   const explicit = generate({ preset: 'brandmark' })
 
-  assert.equal(explicit.d, BRANDMARK_PATH)
+  assert.equal(explicit.d, BRANDMARK_PRESET_PATH)
 
   const box = bbox(pathPoints(explicit.d))
+  assert.deepEqual(box, { x0: 127.5742, x1: 456.4258, y0: 127.5742, y1: 456.4258 })
+
+  const loopBox = bbox(pathPoints(generate({ preset: 'loop' }).d))
+  for (const key of ['x0', 'x1', 'y0', 'y1']) {
+    assert.ok(Math.abs(box[key] - loopBox[key]) < 1, `${key} aligns with Namche Loop`)
+  }
+})
+
+test('the raw approved brandmark asset remains full-bleed', () => {
+  const box = bbox(pathPoints(BRANDMARK_PATH))
   assert.deepEqual(box, { x0: 0, x1: VIEWBOX, y0: 0, y1: VIEWBOX })
 })
 

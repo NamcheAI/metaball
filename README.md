@@ -61,8 +61,11 @@ const mask = generateMaskToken({ seed: "namche" }); // CSS mask token
 ```
 
 With no parameters, `generate()` returns the current Namche `loop` mark.
-The legacy `brandmark` preset keeps its approved silhouette as a golden vector and
-also carries the editable five-node graph used by Metaball Studio.
+The legacy `brandmark` preset keeps its approved silhouette as a golden vector,
+fitted to the same inner authoring frame as Loop and R, and carries the matching
+editable five-node graph used by Metaball Studio. `BRANDMARK_PATH` remains the
+unframed official asset path for brand-asset generation; `BRANDMARK_PRESET_PATH`
+is its editor-safe framed counterpart.
 
 Give it a `preset`, an explicit `nodes`/`edges` spec, or a `seed` — in that
 order of precedence. The same input always produces the same path, so baked

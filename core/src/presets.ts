@@ -1,5 +1,5 @@
 import { nodeKey } from './geometry.js'
-import { BRANDMARK_PATH } from './brandmark.js'
+import { BRANDMARK_PRESET_PATH, BRANDMARK_PRESET_RADIUS } from './brandmark.js'
 import type { Edge, Node, Preset, Size } from './types.js'
 
 const node = (r: number, c: number, size: Size = 'L'): Node => ({ r, c, size })
@@ -13,15 +13,19 @@ export const PRESETS: Preset[] = [
     id: 'brandmark',
     label: 'Classic Mark',
     nodes: [
-      { ...node(0, 0), radius: 89.55, offsetX: 25.55, offsetY: 25.55 },
-      { ...node(0, 4), radius: 89.55, offsetX: -25.55, offsetY: 25.55 },
-      { ...node(2, 2), radius: 89.55 },
-      { ...node(4, 0), radius: 89.55, offsetX: 25.55, offsetY: -25.55 },
-      { ...node(4, 4), radius: 89.55, offsetX: -25.55, offsetY: -25.55 },
+      { ...node(1, 1), radius: BRANDMARK_PRESET_RADIUS },
+      { ...node(1, 3), radius: BRANDMARK_PRESET_RADIUS },
+      { ...node(2, 2), radius: BRANDMARK_PRESET_RADIUS },
+      { ...node(3, 1), radius: BRANDMARK_PRESET_RADIUS },
+      { ...node(3, 3), radius: BRANDMARK_PRESET_RADIUS },
     ],
-    edges: [edge([0, 0], [0, 4]), edge([0, 4], [4, 4]), edge([4, 0], [4, 4]), edge([2, 2], [4, 0])],
-    fullGrid: true,
-    referencePath: BRANDMARK_PATH,
+    edges: [
+      edge([1, 1], [1, 3]),
+      edge([1, 3], [3, 3]),
+      edge([3, 1], [3, 3]),
+      edge([2, 2], [3, 1]),
+    ],
+    referencePath: BRANDMARK_PRESET_PATH,
     tubeFactor: 0.22,
     gooStd: 9,
     gooThreshold: 22,

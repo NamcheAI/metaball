@@ -46,6 +46,11 @@ these boundaries.
 6. Keep the default viewer light. Liquid, surface sampling, GLB and Blender
    handoff are Studio features and do not belong in the public renderer.
 
+Canonical presets share the inner 3 × 3 authoring frame. The exported
+`BRANDMARK_PATH` is the intentionally full-bleed official asset source; use the
+framed `brandmark` preset (or `BRANDMARK_PRESET_PATH`) inside the editor and
+renderer.
+
 ## Public renderer contract
 
 `@namche/metaball-react` is the component intended for the NAMCHE Brand page.

@@ -185,7 +185,7 @@ export type Document = EditorDoc & {
   surfaceSamplerAnimate: boolean;
 };
 
-export const DOCUMENT_VERSION = 10;
+export const DOCUMENT_VERSION = 11;
 export type StoredDocument = Document & { version: number };
 
 export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []): Document {
