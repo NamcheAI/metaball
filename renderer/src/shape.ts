@@ -1,12 +1,12 @@
 import {
-  DEFAULT_GOO_STD,
-  DEFAULT_GOO_THRESHOLD,
-  DEFAULT_PRESET_ID,
-  DEFAULT_TUBE_FACTOR,
+  ENGINE,
   presetById,
   type Edge,
   type Node,
 } from '@namche/metaball';
+
+const { DEFAULT_GOO_STD, DEFAULT_GOO_THRESHOLD, DEFAULT_PRESET_ID, DEFAULT_TUBE_FACTOR } =
+  ENGINE;
 
 export type MetaballShape = {
   nodes: Node[];
@@ -27,7 +27,7 @@ export type ResolvedMetaballShape = Required<MetaballShape>;
 
 export function resolveMetaballShape(
   shape?: MetaballShape,
-  presetId = DEFAULT_PRESET_ID,
+  presetId: string = DEFAULT_PRESET_ID,
 ): ResolvedMetaballShape {
   const requestedPreset = presetById(presetId);
   if (!shape && !requestedPreset) {

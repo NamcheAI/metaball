@@ -1,12 +1,21 @@
 # Changelog
 
-## Unreleased
+## `@namche/metaball` 2.0.0 — Unreleased
+
+- **Breaking:** Replace loose uppercase root exports with the frozen `ENGINE`
+  namespace. Functional and type exports remain unchanged; migrate
+  `import { VIEWBOX }` to `import { ENGINE }` and read `ENGINE.VIEWBOX`.
 
 - Fit the `brandmark`/Classic Mark preset to the same inner authoring frame as
   Loop and R in both 2D and 3D.
 - Export `BRANDMARK_PRESET_PATH` separately from the unchanged full-bleed
   `BRANDMARK_PATH` used to build official brand assets.
 - Migrate saved version 10 Classic documents to the shared inner grid.
+
+## `@namche/metaball-react` 0.2.0 — Unreleased
+
+- Consume the namespaced `@namche/metaball` 2.x data API. The renderer's own
+  public component API is unchanged.
 
 ## `@namche/metaball` 1.0.0 — 2026-08-19
 

@@ -1,16 +1,29 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  BRANDMARK_PATH,
-  BRANDMARK_PRESET_PATH,
-  DEFAULT_PRESET_ID,
+  ENGINE,
   generate,
   generateMaskToken,
   generateSvg,
   layoutFromSeed,
+} from '../dist/index.js'
+
+const {
+  BRANDMARK_PATH,
+  BRANDMARK_PRESET_PATH,
+  DEFAULT_PRESET_ID,
   PRESETS,
   VIEWBOX,
-} from '../dist/index.js'
+} = ENGINE
+
+test('uppercase data exports are bundled behind the frozen ENGINE namespace', async () => {
+  const publicApi = await import('../dist/index.js')
+  const uppercaseExports = Object.keys(publicApi).filter((name) => /^[A-Z]/.test(name))
+
+  assert.deepEqual(uppercaseExports, ['ENGINE'])
+  assert.equal(Object.isFrozen(ENGINE), true)
+  assert.equal(ENGINE.PRESETS, PRESETS)
+})
 
 test('the default is the current Namche Loop', () => {
   assert.equal(DEFAULT_PRESET_ID, 'loop')

@@ -1,6 +1,6 @@
 {
   "name": "@namche/metaball-react",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Embeddable React and Three.js renderer for NAMCHE metaball marks",
   "repository": {
     "type": "git",
@@ -38,7 +38,7 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
-    "@namche/metaball": "^1.0.0"
+    "@namche/metaball": "^2.0.0"
   },
   "peerDependencies": {
     "@react-three/drei": "^10.7.7",

@@ -1,6 +1,5 @@
 import {
-  CELL,
-  VIEWBOX,
+  ENGINE,
   clamp01,
   edgeKey,
   nodeCenter,
@@ -10,6 +9,8 @@ import {
 } from '@namche/metaball';
 import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import type { ResolvedMetaballShape } from './shape.js';
+
+const { CELL, VIEWBOX } = ENGINE;
 
 const MC_SUBTRACT = 12;
 const MC_ISOLATION_MIN = 50;
