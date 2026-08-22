@@ -9,6 +9,12 @@ or as organic **metaballs** (gooey blend). Export to SVG, PNG, or JSON. A
 **3D view** shows the same mark as a live, orbitable isosurface with a choice
 of organic material presets.
 
+The compact Studio chrome uses the private tool lockup and local Namche Shadow
+display face. Its Basalt header mark and Rhododendron favicon are synced from
+the authoritative sibling `design` repository's generated brand-asset bundle;
+the public “Frontier AI Initiative” descriptor is intentionally omitted to keep
+the internal editor header compact.
+
 For finishes that cannot be simulated convincingly in a lightweight browser
 shader, Studio can send the current camera view plus an optional material
 reference to a server-side image model and return a high-fidelity material

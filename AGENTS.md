@@ -94,6 +94,12 @@ The current design tokens live in the sibling `design` repository. Pull its
 UI tokens; OKEANOS/HELIOS and the raster colors are editorial/diagram colors,
 not generic product chrome.
 
+The Studio header uses two distinct generated brand assets: the transparent
+Basalt mark at `editor/public/namche-mark.svg`, and the Rhododendron avatar at
+`editor/public/favicon.svg`. Refresh both from `../design` with
+`npm run build:brand-assets`; do not reuse the coloured favicon as an in-app
+logo or redraw either path by hand.
+
 Keep credits in `README.md`, `AUTHORS.txt`, and `CONTRIBUTORS.txt`. Michael
 Marte's design/development credit and Ruhm etc. attribution must not be removed
 when files are moved or rewritten.

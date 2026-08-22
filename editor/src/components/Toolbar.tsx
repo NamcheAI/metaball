@@ -414,30 +414,28 @@ export default function Toolbar({
     <aside className="toolbar">
       <header className="toolbar-header">
         <div className="brand">
-          <img className="namche-mark" src="/favicon.svg" alt="" aria-hidden="true" />
+          <img className="namche-mark" src="/namche-mark.svg" alt="" aria-hidden="true" />
           <div className="namche-wordmark">
             <strong>NAMCHE</strong>
-            <span>Frontier AI Initiative</span>
+            <span>Metaball Studio</span>
           </div>
-          <p>Metaball Studio</p>
         </div>
 
-        <div className="button-grid">
+        <div className="toolbar-quickbar">
           <button className="chip" disabled={!canUndo} onClick={onUndo}>
             Undo
           </button>
           <button className="chip" disabled={!canRedo} onClick={onRedo}>
             Redo
           </button>
-        </div>
-
-        <div className="segmented" aria-label="View dimension">
-          <button className={view === '2d' ? 'active' : ''} onClick={() => onViewChange('2d')}>
-            2D
-          </button>
-          <button className={view === '3d' ? 'active' : ''} onClick={() => onViewChange('3d')}>
-            3D
-          </button>
+          <div className="segmented" aria-label="View dimension">
+            <button className={view === '2d' ? 'active' : ''} onClick={() => onViewChange('2d')}>
+              2D
+            </button>
+            <button className={view === '3d' ? 'active' : ''} onClick={() => onViewChange('3d')}>
+              3D
+            </button>
+          </div>
         </div>
 
         {view === '2d' && (

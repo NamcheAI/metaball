@@ -68,6 +68,10 @@ function renderToolbar(view: '2d' | '3d', mode: 'metaball' | 'graph' = 'metaball
 
 test('2D exposes flat appearance and raster controls, not materials', () => {
   const html = renderToolbar('2d');
+  assert.match(html, /NAMCHE/);
+  assert.match(html, /Metaball Studio/);
+  assert.match(html, /\/namche-mark\.svg/);
+  assert.doesNotMatch(html, /Frontier AI Initiative/);
   assert.match(html, /Namche raster/);
   assert.match(html, />Form</);
   assert.doesNotMatch(html, />Organic</);
