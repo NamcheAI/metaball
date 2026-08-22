@@ -35,8 +35,9 @@ const presetTranslate = VIEWBOX / 2 - (VIEWBOX / 2) * BRANDMARK_PRESET_SCALE
 export const BRANDMARK_PRESET_PATH = BRANDMARK_PATH.replace(
   /-?\d*\.?\d+(?:e[-+]?\d+)?/gi,
   (token) => {
-    // This path contains only absolute M/C commands, whose numeric values are
-    // coordinate pairs. A uniform transform is therefore identical for x/y.
+    // Every path command is absolute. Because scale and translation are the
+    // same on both axes, coordinate pairs and single H/V values use the same
+    // numeric transform.
     const transformed = Number(token) * BRANDMARK_PRESET_SCALE + presetTranslate
     return String(Number(transformed.toFixed(4)))
   },
