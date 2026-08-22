@@ -28,8 +28,8 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 12px;
+  gap: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -157,35 +157,49 @@
 
 .brand {
   display: flex;
-  flex-direction: column;
-  gap: 9px;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
 }
 .namche-mark {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
+  flex: none;
 }
 .namche-wordmark {
   display: flex;
   flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.namche-wordmark strong {
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 1.05;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
   letter-spacing: -0.01em;
 }
-.namche-wordmark strong,
 .namche-wordmark span {
-  font: inherit;
-}
-.brand p {
-  margin: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.toolbar-quickbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr;
+  gap: 6px;
+}
+
+.toolbar-quickbar > button,
+.toolbar-quickbar .segmented button {
+  min-height: 32px;
+  padding-block: 6px;
 }
 
 .button-grid {
