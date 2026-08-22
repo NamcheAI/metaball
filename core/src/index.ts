@@ -15,19 +15,31 @@
  * rasterizer) and in the browser (canvas rasterizer, chosen automatically).
  */
 
+import * as brandmark from './brandmark.js'
+import * as constants from './constants.js'
+import { DEFAULT_PRESET_ID, EDITOR_PRESET_IDS, PRESETS } from './presets.js'
+
+/**
+ * Stable namespace for data and configuration values.
+ *
+ * Keeping uppercase values behind one export prevents component-oriented
+ * consumers from mistaking every engine constant for a UI component.
+ */
+export const ENGINE = Object.freeze({
+  ...constants,
+  ...brandmark,
+  PRESETS,
+  DEFAULT_PRESET_ID,
+  EDITOR_PRESET_IDS,
+})
+
 export { generate, generateMaskToken, generateSvg } from './generate.js'
-export {
-  BRANDMARK_PATH,
-  BRANDMARK_PRESET_PATH,
-  BRANDMARK_PRESET_RADIUS,
-  BRANDMARK_PRESET_SCALE,
-} from './brandmark.js'
 export type { GenerateParams, GenerateResult, SvgParams } from './generate.js'
 
 export { layoutFromSeed, rng, seedFrom } from './seed.js'
 export type { SeedLayoutOptions } from './seed.js'
 
-export { DEFAULT_PRESET_ID, EDITOR_PRESET_IDS, PRESETS, presetById } from './presets.js'
+export { presetById } from './presets.js'
 
 export { buildRenderData, capsuleRadius } from './primitives.js'
 
@@ -60,27 +72,6 @@ export {
   parseKey,
   sizeRadius,
 } from './geometry.js'
-
-export {
-  CELL,
-  DEFAULT_FLATTEN_EPSILON,
-  DEFAULT_FLATTEN_RESOLUTION,
-  DEFAULT_GOO_STD,
-  DEFAULT_GOO_THRESHOLD,
-  DEFAULT_THEME,
-  DEFAULT_TUBE_FACTOR,
-  GRID,
-  MARGIN,
-  OFFSET_LIMIT,
-  PITCH,
-  PNG_SCALES,
-  PULL_BLUR_BOOST,
-  RADIUS_MAX,
-  RADIUS_MIN,
-  SIZE_FACTORS,
-  SIZES,
-  VIEWBOX,
-} from './constants.js'
 
 export type {
   Capsule,

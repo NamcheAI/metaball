@@ -13,7 +13,9 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { generate, generateSvg, PRESETS } from '../core/dist/index.js'
+import { ENGINE, generate, generateSvg } from '../core/dist/index.js'
+
+const { PRESETS } = ENGINE
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '..')

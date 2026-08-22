@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { VIEWBOX, generate } from '@namche/metaball';
+import { ENGINE, generate } from '@namche/metaball';
 import { toGenerateParams } from '../src/lib/coreDocument';
 import { PRESETS, applyPresetShape, clonePreset } from '../src/lib/model';
+
+const { VIEWBOX } = ENGINE;
 
 test('the untouched studio default maps to the Namche Loop preset', () => {
   const preset = PRESETS[0];

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PRESET_ID } from '@namche/metaball';
+import { ENGINE } from '@namche/metaball';
 import { resolveMetaballShape } from '../dist/index.js';
+
+const { DEFAULT_PRESET_ID } = ENGINE;
 
 test('the public renderer resolves to the current NAMCHE Loop by default', () => {
   assert.equal(DEFAULT_PRESET_ID, 'loop');

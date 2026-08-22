@@ -2,8 +2,8 @@
 
 The public packages are:
 
-- `@namche/metaball` — core geometry, currently `1.0.0`;
-- `@namche/metaball-react` — React/Three.js viewer, currently `0.1.0`.
+- `@namche/metaball` — core geometry, next release `2.0.0`;
+- `@namche/metaball-react` — React/Three.js viewer, next release `0.2.0`.
 
 The renderer depends on the core package, so core is always published first.
 

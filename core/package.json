@@ -1,6 +1,6 @@
 {
   "name": "@namche/metaball",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Metaball brandmark engine — deterministic node/edge marks as SVG paths",
   "repository": {
     "type": "git",
