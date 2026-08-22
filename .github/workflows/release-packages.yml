@@ -49,3 +49,4 @@ jobs:
           }
           publish_if_missing @namche/metaball core
           publish_if_missing @namche/metaball-react renderer
+          publish_if_missing @namche/metaball-svg svg
