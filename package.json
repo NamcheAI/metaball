@@ -2,22 +2,28 @@
   "name": "metaball",
   "private": true,
   "version": "1.0.0",
-  "description": "NAMCHE metaball brandmark generator — engine and editor",
+  "description": "NAMCHE metaball brandmark generator \u2014 engine and editor",
   "type": "module",
-  "workspaces": ["core", "renderer", "editor"],
+  "workspaces": [
+    "core",
+    "renderer",
+    "svg",
+    "editor"
+  ],
   "scripts": {
-    "build": "npm run build -w @namche/metaball && npm run build -w @namche/metaball-react && npm run build -w metaball-editor",
+    "build": "npm run build -w @namche/metaball && npm run build -w @namche/metaball-react && npm run build -w @namche/metaball-svg && npm run build -w metaball-editor",
     "build:core": "npm run build -w @namche/metaball",
     "build:renderer": "npm run build:core && npm run build -w @namche/metaball-react",
     "dev": "npm run dev -w metaball-editor",
-    "test": "npm run test -w @namche/metaball && npm run test -w @namche/metaball-react && npm run test -w metaball-editor && npm run verify:skill-links",
-    "lint": "npm run lint -w @namche/metaball-react && npm run lint -w metaball-editor",
+    "test": "npm run test -w @namche/metaball && npm run test -w @namche/metaball-react && npm run test -w @namche/metaball-svg && npm run test -w metaball-editor && npm run verify:skill-links",
+    "lint": "npm run lint -w @namche/metaball-react && npm run lint -w @namche/metaball-svg && npm run lint -w metaball-editor",
     "typecheck": "npm run build:renderer && npm run typecheck -w metaball-editor",
     "bake": "node scripts/bake-assets.mjs",
     "sync:design": "node scripts/sync-design.mjs",
     "sync:marks": "node scripts/sync-marks.mjs",
-    "release:dry-run": "npm pack --dry-run -w @namche/metaball && npm pack --dry-run -w @namche/metaball-react",
-    "verify:skill-links": "node scripts/verify-skill-links.mjs"
+    "release:dry-run": "npm pack --dry-run -w @namche/metaball && npm pack --dry-run -w @namche/metaball-react && npm pack --dry-run -w @namche/metaball-svg",
+    "verify:skill-links": "node scripts/verify-skill-links.mjs",
+    "build:svg": "npm run build:core && npm run build -w @namche/metaball-svg"
   },
   "devDependencies": {
     "typescript": "^5.7.2"
