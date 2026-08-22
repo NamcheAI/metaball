@@ -12,6 +12,10 @@ generate({ preset: 'r' });
 generateSvg({ preset: 'trio', fill: '#262626' });
 ```
 
+The `brandmark` preset fits the approved Classic silhouette to the common
+inner authoring frame. Use `BRANDMARK_PRESET_PATH` for that framed vector and
+the full-bleed `BRANDMARK_PATH` only when producing official logo assets.
+
 Full API and geometry documentation live in the repository
 [`README.md`](../README.md).
 

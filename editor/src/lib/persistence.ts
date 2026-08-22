@@ -12,6 +12,7 @@ import {
   INWARD_PULL_MAX,
   INWARD_PULL_MIN,
   OFFSET_MAX,
+  PRESETS,
   RADIUS_MAX,
   RADIUS_MIN,
   TUBE_FACTOR_MAX,
@@ -54,6 +55,66 @@ const finiteOr = (value: unknown, fallback: number, min: number, max: number): n
   isFiniteNumber(value) ? clamp(value, min, max) : fallback;
 const isHexColor = (value: unknown): value is string =>
   typeof value === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(value);
+
+const LEGACY_BRANDMARK_NODE_IDS = new Set(['0-0', '0-4', '2-2', '4-0', '4-4']);
+const LEGACY_BRANDMARK_EDGES = new Set([
+  edgeKey('0-0', '0-4'),
+  edgeKey('0-4', '4-4'),
+  edgeKey('4-0', '4-4'),
+  edgeKey('2-2', '4-0'),
+]);
+const LEGACY_TO_INNER_NODE: Record<string, string> = {
+  '0-0': '1-1',
+  '0-4': '1-3',
+  '2-2': '2-2',
+  '4-0': '3-1',
+  '4-4': '3-3',
+};
+
+function isLegacyFullBleedBrandmark(doc: Document): boolean {
+  if (!doc.fullGrid || doc.nodes.length !== 5 || doc.edges.length !== 4) return false;
+  if (!doc.nodes.every((node) => LEGACY_BRANDMARK_NODE_IDS.has(nodeId(node.r, node.c)))) {
+    return false;
+  }
+  if (!doc.edges.every(([a, b]) => LEGACY_BRANDMARK_EDGES.has(edgeKey(a, b)))) return false;
+
+  return doc.nodes.every((node) => {
+    const horizontalSign = node.c === 0 ? 1 : node.c === 4 ? -1 : 0;
+    const verticalSign = node.r === 0 ? 1 : node.r === 4 ? -1 : 0;
+    return (
+      node.size === 'L' &&
+      node.radius === 89.55 &&
+      (node.offsetX ?? 0) === horizontalSign * 25.55 &&
+      (node.offsetY ?? 0) === verticalSign * 25.55
+    );
+  });
+}
+
+function remapLegacyEdgeRecord(record: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [
+      key
+        .split('|')
+        .map((id) => LEGACY_TO_INNER_NODE[id] ?? id)
+        .sort()
+        .join('|'),
+      value,
+    ]),
+  );
+}
+
+function migrateLegacyBrandmark(doc: Document): Document {
+  const preset = PRESETS.find(({ id }) => id === 'brandmark');
+  if (!preset) return doc;
+  return {
+    ...doc,
+    nodes: preset.nodes.map((node) => ({ ...node })),
+    edges: preset.edges.map(([a, b]): Edge => [a, b]),
+    edgeFactors: remapLegacyEdgeRecord(doc.edgeFactors),
+    edgePulls: remapLegacyEdgeRecord(doc.edgePulls),
+    fullGrid: false,
+  };
+}
 
 function sanitizeNode(value: unknown): GridNode | null {
   if (!isRecord(value)) return null;
@@ -149,6 +210,7 @@ export function loadDocument(): Document | null {
 export function normalizeDocument(input: unknown): Document {
   const base = createDefaultDocument();
   if (!isRecord(input)) return base;
+  const storedVersion = isFiniteNumber(input.version) ? input.version : 0;
 
   const nodes = sanitizeNodes(input.nodes);
   const nodeIds = new Set(nodes.map((node) => nodeId(node.r, node.c)));
@@ -175,7 +237,7 @@ export function normalizeDocument(input: unknown): Document {
   if (materialPreset === 'prism') materialPreset = 'wax';
   materialPreset = getMaterialPreset(materialPreset).id;
 
-  return {
+  const normalized: Document = {
     nodes,
     edges,
     edgeFactors: sanitizeEdgeRecord(
@@ -241,6 +303,10 @@ export function normalizeDocument(input: unknown): Document {
         ? input.surfaceSamplerAnimate
         : base.surfaceSamplerAnimate,
   };
+
+  return storedVersion < 11 && isLegacyFullBleedBrandmark(normalized)
+    ? migrateLegacyBrandmark(normalized)
+    : normalized;
 }
 
 export function initialDocument(): Document {

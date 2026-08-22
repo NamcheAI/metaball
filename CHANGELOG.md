@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Fit the `brandmark`/Classic Mark preset to the same inner authoring frame as
+  Loop and R in both 2D and 3D.
+- Export `BRANDMARK_PRESET_PATH` separately from the unchanged full-bleed
+  `BRANDMARK_PATH` used to build official brand assets.
+- Migrate saved version 10 Classic documents to the shared inner grid.
+
 ## `@namche/metaball` 1.0.0 — 2026-08-19
 
 - First public release of the deterministic 2D metaball geometry engine.

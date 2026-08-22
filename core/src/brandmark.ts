@@ -6,7 +6,10 @@ import { VIEWBOX } from './constants.js'
  * The source vector uses a 600 × 600 viewBox. The engine's authoring grid is
  * 584 × 584, so coordinates are scaled uniformly without changing the
  * silhouette. Keeping this canonical path next to the engine preserves the
- * legacy mark exactly while its node graph remains editable.
+ * legacy mark exactly while its node graph remains editable. `BRANDMARK_PATH`
+ * intentionally remains the full-bleed asset path. The editor preset uses the
+ * separately framed path below so it shares a coordinate convention with the
+ * rest of the mark family.
  */
 const SOURCE_SIZE = 600
 const SOURCE_PATH =
@@ -16,4 +19,25 @@ const scale = VIEWBOX / SOURCE_SIZE
 
 export const BRANDMARK_PATH = SOURCE_PATH.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (token) =>
   String(Number((Number(token) * scale).toFixed(4))),
+)
+
+/**
+ * The approved silhouette fitted to the inner 3 × 3 authoring grid.
+ *
+ * The original graph's outer node centres are 404.9 units apart. Mapping that
+ * span to the 228-unit distance between cells 1 and 3 makes Classic use the
+ * same node centres as Loop and R, while preserving the silhouette exactly.
+ */
+export const BRANDMARK_PRESET_SCALE = 228 / 404.9
+export const BRANDMARK_PRESET_RADIUS = 89.55 * BRANDMARK_PRESET_SCALE
+const presetTranslate = VIEWBOX / 2 - (VIEWBOX / 2) * BRANDMARK_PRESET_SCALE
+
+export const BRANDMARK_PRESET_PATH = BRANDMARK_PATH.replace(
+  /-?\d*\.?\d+(?:e[-+]?\d+)?/gi,
+  (token) => {
+    // This path contains only absolute M/C commands, whose numeric values are
+    // coordinate pairs. A uniform transform is therefore identical for x/y.
+    const transformed = Number(token) * BRANDMARK_PRESET_SCALE + presetTranslate
+    return String(Number(transformed.toFixed(4)))
+  },
 )
