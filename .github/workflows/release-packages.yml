@@ -38,15 +38,42 @@ jobs:
         env:
           NPM_TAG: ${{ inputs.npm_tag }}
         run: |
+          # The registry read path lags its write path: a version published
+          # moments earlier can still 404 for `npm view`. That made this step
+          # decide a package was unpublished, try to publish it again, and fail
+          # the whole release on npm's duplicate-version rejection — which is
+          # what happened to @namche/metaball-svg@0.1.0.
+          #
+          # The pre-check stays as a cheap fast path, but it is no longer load
+          # bearing: publishing a version that already exists is now treated as
+          # the outcome we wanted rather than an error. That also makes the step
+          # safe to re-run, and race-free if two releases overlap.
           publish_if_missing() {
-            package_name="$1"
-            package_version=$(node -p "require('./$2/package.json').version")
-            if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
-              echo "$package_name@$package_version already exists; skipping"
-            else
-              npm publish -w "$package_name" --access public --provenance --tag "$NPM_TAG"
+            local name="$1" dir="$2" version log
+            version=$(node -p "require('./$dir/package.json').version")
+
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "skip    $name@$version — already on the registry"
+              return 0
             fi
+
+            log=$(mktemp)
+            if npm publish -w "$name" --access public --provenance --tag "$NPM_TAG" >"$log" 2>&1; then
+              cat "$log"
+              echo "publish $name@$version — done"
+              return 0
+            fi
+
+            cat "$log"
+            if grep -qiE 'cannot publish over|previously published versions|EPUBLISHCONFLICT' "$log"; then
+              echo "skip    $name@$version — already on the registry (the pre-check read stale data)"
+              return 0
+            fi
+
+            echo "FAILED  $name@$version"
+            return 1
           }
+
           publish_if_missing @namche/metaball core
           publish_if_missing @namche/metaball-react renderer
           publish_if_missing @namche/metaball-svg svg
