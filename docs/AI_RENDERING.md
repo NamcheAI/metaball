@@ -67,9 +67,12 @@ deployments set the same variable in the server runtime.
 **`/api/render` has no authentication** -- the Studio editor is a public
 deployment (see [`editor/README.md`](../editor/README.md)) and there is no PIN
 gate in front of it any more. Anyone who can reach the deployment can call
-this endpoint and spend the configured provider's credits. Do not set
-`OPENAI_API_KEY` on a public deployment without adding some other protection
-in front of it first (e.g. a reverse-proxy auth layer or IP allowlist).
+this endpoint and spend the configured provider's credits. The self-hosted
+server therefore rate limits it per client IP (`RENDER_MAX_PER_HOUR`,
+default 10/hour) as a spending brake. That brake does not exist on the
+serverless (Vercel) path: do not set `OPENAI_API_KEY` there without adding
+some other protection in front first (e.g. a reverse-proxy auth layer or an
+IP allowlist).
 
 ## Code boundaries
 

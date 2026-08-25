@@ -55,6 +55,24 @@ test('the editor is public: every route is reachable with no authentication', as
   });
 });
 
+test('the render endpoint is rate limited per client', async (t) => {
+  const saved = process.env.RENDER_MAX_PER_HOUR;
+  process.env.RENDER_MAX_PER_HOUR = '1';
+  t.after(() => {
+    if (saved === undefined) delete process.env.RENDER_MAX_PER_HOUR;
+    else process.env.RENDER_MAX_PER_HOUR = saved;
+  });
+  await withServer(makeDistDir(), async (base) => {
+    // No OPENAI_API_KEY in tests, so the first request reaches the handler
+    // (its not-configured error) and the second is cut off by the limiter.
+    const first = await fetch(`${base}/api/render`, { method: 'POST', body: '{}' });
+    assert.notEqual(first.status, 429);
+    const second = await fetch(`${base}/api/render`, { method: 'POST', body: '{}' });
+    assert.equal(second.status, 429);
+    assert.ok(Number(second.headers.get('retry-after')) > 0);
+  });
+});
+
 test('the /impressum and /datenschutz rewrites serve their .html files', async () => {
   const dir = makeDistDir();
   writeFileSync(path.join(dir, 'impressum.html'), '<html>impressum</html>');

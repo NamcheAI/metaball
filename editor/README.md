@@ -37,12 +37,14 @@ front of any route. Anyone who can reach a deployment can open it and use it.
 (Jodok, 2026-08-25: the editor deploys as a public container at
 metaball.namche.ai; an earlier Vercel PIN gate has been removed entirely.)
 
-> **`/api/render` spends real money and has no protection.** It calls a paid
-> OpenAI image endpoint on every request, and since the editor is public,
-> anyone who can reach a deployment can trigger it. Do not set
-> `OPENAI_API_KEY` on a public deployment without adding some other layer of
-> protection first (e.g. a reverse-proxy auth layer or IP allowlist). See
-> [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
+> **`/api/render` spends real money.** It calls a paid OpenAI image endpoint
+> on every request, and since the editor is public, anyone who can reach a
+> deployment can trigger it. The self-hosted server caps this at
+> `RENDER_MAX_PER_HOUR` renders per client IP per hour (default 10, `0`
+> disables the guard) — a spending brake, not authentication. The Vercel
+> deployment has **no** such guard (serverless instances cannot share the
+> window): do not set `OPENAI_API_KEY` there without adding protection in
+> front. See [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
 
 ### Deploy to Vercel
 
@@ -100,6 +102,7 @@ npm run serve -w metaball-editor          # node dist-server/server/index.js
 | `PORT`                      | Port to listen on (default `8080`)                               |
 | `OPENAI_API_KEY`            | Optional server-only key for AI material renders (see warning above) |
 | `OPENAI_IMAGE_MODEL`        | Optional model override (default `gpt-image-2`)                   |
+| `RENDER_MAX_PER_HOUR`       | Renders allowed per client IP per hour (default `10`, `0` = unlimited) |
 
 `GET /api/health` always returns `200 {"ok":true}`, for the deploy contract's
 health check.

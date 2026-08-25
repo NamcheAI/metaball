@@ -2,6 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import renderHandler from '../api/render.js';
+import {
+  createRenderRateLimiter,
+  renderRateLimitBudget,
+  renderRateLimitKey,
+} from './render-rate-limit.js';
 import { serveStatic } from './static.js';
 import { readRequestBody, toVercelRequest, toVercelResponse } from './vercel-adapter.js';
 
@@ -28,6 +33,9 @@ export type RequestListener = (req: IncomingMessage, res: ServerResponse) => Pro
  */
 export function createRequestListener(options: AppOptions = {}): RequestListener {
   const distDir = options.distDir ?? DEFAULT_DIST_DIR;
+  // Spending guard, not authentication: the editor is public, but a render
+  // is a paid provider call whenever OPENAI_API_KEY is configured.
+  const renderLimiter = createRenderRateLimiter(renderRateLimitBudget());
 
   return async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -61,6 +69,12 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
       // itself, exactly as it does on Vercel -- routing here only matches
       // the path so that behavior isn't duplicated.
       if (pathname === '/api/render') {
+        const verdict = renderLimiter.take(renderRateLimitKey(req));
+        if (!verdict.allowed) {
+          res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
+          sendJson(res, 429, { error: 'Render rate limit reached. Try again later.' });
+          return;
+        }
         const body = await readRequestBody(req);
         await renderHandler(toVercelRequest(req, body), toVercelResponse(res));
         return;
