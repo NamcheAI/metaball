@@ -18,7 +18,9 @@ const FUSION_PARAMS: GenerateParams = {
   neck: LOOP_GOO.tubeFactor,
   blur: LOOP_GOO.gooStd,
   contrast: LOOP_GOO.gooThreshold,
-  pinch: 0.7,
+  // 0.45, not higher: at the loop's blur/contrast a stronger pinch severs
+  // the necks and the "fusion" tile reads as separate droplets.
+  pinch: 0.45,
 };
 
 /**
