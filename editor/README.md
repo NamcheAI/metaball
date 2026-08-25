@@ -65,11 +65,12 @@ Apply to **Production** (and Preview if you want PIN on preview URLs too).
 Create or connect an Upstash Redis database through the Vercel Marketplace first;
 the shared store enforces five PIN attempts per source across all function instances.
 When Upstash is configured, login rate limiting also fails closed if the store
-times out. Without Upstash configured, login falls back to an in-memory limiter
-scoped to a single function instance — weaker on a multi-instance deployment,
-but PIN attempts are never left unlimited. Only intentionally public Vercel
-deployments should set `AUTH_DISABLED=1`; omitting credentials alone never
-disables authentication.
+times out. Without Upstash configured, login on Vercel fails closed (503): a
+per-instance in-memory window would hand every cold-started function a fresh
+attempt budget, so serverless never falls back. (The self-hosted server below
+does opt in to the in-memory fallback — it is one long-lived process.) Only
+intentionally public Vercel deployments should set `AUTH_DISABLED=1`; omitting
+credentials alone never disables authentication.
 
 ### 4. Deploy
 

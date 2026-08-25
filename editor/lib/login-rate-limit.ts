@@ -82,14 +82,32 @@ function upstashLoginRateLimiter(): SharedLoginRateLimiter | undefined {
   return sharedLimiter;
 }
 
+let memoryFallbackEnabled = false;
+
+/**
+ * Opt in to the in-memory fallback. Only the self-hosted server calls this,
+ * at boot: it is a single long-lived process, where a per-process sliding
+ * window genuinely limits an attacker. Serverless deployments must NOT
+ * enable it -- each instance would track attempts independently, so every
+ * cold start would hand out a fresh budget. There, no Upstash config keeps
+ * the original deliberate behavior: fail closed (503) rather than limit
+ * in name only.
+ */
+export function enableMemoryLoginRateLimitFallback(): void {
+  memoryFallbackEnabled = true;
+}
+
 /**
  * Prefer the shared Upstash-backed limiter when it is configured (protects
- * against multi-instance deployments, e.g. Vercel). Fall back to an
- * in-memory limiter otherwise -- it can always be constructed, so a login
- * attempt is never rejected purely for lack of a rate limiter.
+ * against multi-instance deployments, e.g. Vercel). Without it, fall back
+ * to the in-memory limiter only where that has been explicitly enabled;
+ * otherwise fail closed, as before.
  */
 function defaultLoginRateLimiter(): SharedLoginRateLimiter {
-  return upstashLoginRateLimiter() ?? (memoryLimiter ??= createMemoryLoginRateLimiter());
+  const upstash = upstashLoginRateLimiter();
+  if (upstash) return upstash;
+  if (memoryFallbackEnabled) return (memoryLimiter ??= createMemoryLoginRateLimiter());
+  throw new Error('Shared login rate limiting is not configured');
 }
 
 /** Atomically reserve one verification attempt in shared storage before doing PIN work. */

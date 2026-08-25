@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createMemoryLoginRateLimiter,
+  enableMemoryLoginRateLimitFallback,
   resetLoginAttempts,
   takeLoginAttempt,
 } from '../lib/login-rate-limit';
@@ -50,13 +51,36 @@ test('takeLoginAttempt and resetLoginAttempts compose with the in-memory limiter
   assert.deepEqual(await takeLoginAttempt('key', limiter, now), { allowed: true });
 });
 
-test('the default limiter resolution never throws, so login is never rejected purely for lack of a limiter', async () => {
+// Ordering matters for the two tests below: enableMemoryLoginRateLimitFallback
+// is a one-way, process-wide switch, so the fail-closed default must be
+// asserted before the fallback is enabled. node:test runs tests in a file
+// sequentially, and this file runs in its own process.
+test('without Upstash, the default resolution fails closed — serverless never gets a per-instance limiter', async () => {
   const savedUrl = process.env.UPSTASH_REDIS_REST_URL;
   const savedToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   try {
-    const result = await takeLoginAttempt('unconfigured-source');
+    await assert.rejects(
+      () => takeLoginAttempt('unconfigured-source'),
+      /not configured/,
+    );
+  } finally {
+    if (savedUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+    else process.env.UPSTASH_REDIS_REST_URL = savedUrl;
+    if (savedToken === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    else process.env.UPSTASH_REDIS_REST_TOKEN = savedToken;
+  }
+});
+
+test('with the fallback enabled (self-hosted server), the default resolution uses the in-memory limiter', async () => {
+  const savedUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const savedToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  try {
+    enableMemoryLoginRateLimitFallback();
+    const result = await takeLoginAttempt('self-hosted-source');
     assert.equal(result.allowed, true);
   } finally {
     if (savedUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
