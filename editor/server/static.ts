@@ -84,15 +84,11 @@ export async function serveStatic(
     return;
   }
 
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(REWRITES[pathname] ?? pathname);
-  } catch {
-    res.statusCode = 400;
-    res.end();
-    return;
-  }
-  const normalized = path.posix.normalize(decoded);
+  // `pathname` arrives canonical from app.ts (percent-decoded and
+  // normalized before the auth gate saw it, dot-dot segments rejected).
+  // The normalize + `..` + containment checks below stay as defense in
+  // depth for any future caller that skips that pipeline.
+  const normalized = path.posix.normalize(REWRITES[pathname] ?? pathname);
   if (normalized.includes('..')) {
     res.statusCode = 400;
     res.end();
@@ -119,8 +115,10 @@ export async function serveStatic(
 
   // Client-side routes have no file extension (e.g. `/studio`); a request
   // for something that looks like an asset (`/missing.js`) should 404
-  // instead of silently returning the app shell.
-  if (path.extname(pathname) === '') {
+  // instead of silently returning the app shell. The /assets/ subtree never
+  // falls back at all: it is auth-exempt, so handing out index.html there
+  // would serve the gated app shell to unauthenticated callers.
+  if (path.extname(pathname) === '' && !normalized.startsWith('/assets/')) {
     try {
       const indexPath = path.join(distDir, 'index.html');
       const info = await stat(indexPath);

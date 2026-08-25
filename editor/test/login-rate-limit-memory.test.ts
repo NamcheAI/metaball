@@ -32,6 +32,19 @@ test('resetUsedTokens clears a key so it can retry immediately', async () => {
   assert.equal((await limiter.limit('a')).success, true);
 });
 
+test('the key map is bounded: keys past the cap are evicted oldest-first', async () => {
+  const limiter = createMemoryLoginRateLimiter(1, 900_000, 2);
+  assert.equal((await limiter.limit('k1')).success, true);
+  assert.equal((await limiter.limit('k1')).success, false);
+  assert.equal((await limiter.limit('k2')).success, true);
+  assert.equal((await limiter.limit('k3')).success, true);
+  // The next call sees the map above maxKeys=2 and evicts oldest-first (k1),
+  // so the previously blocked key is back to a fresh budget — bounded memory
+  // is bought with biased eviction, which this asserts explicitly.
+  assert.equal((await limiter.limit('k4')).success, true);
+  assert.equal((await limiter.limit('k1')).success, true);
+});
+
 test('attempts outside the sliding window expire', async () => {
   const limiter = createMemoryLoginRateLimiter(1, 10);
   assert.equal((await limiter.limit('a')).success, true);

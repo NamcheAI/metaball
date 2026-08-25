@@ -41,6 +41,7 @@ export function loginRateLimitKey(req: Pick<VercelRequest, 'headers'>): string {
 export function createMemoryLoginRateLimiter(
   maxAttempts = MAX_ATTEMPTS,
   windowMs = WINDOW_MS,
+  maxKeys = 10_000,
 ): SharedLoginRateLimiter {
   const attempts = new Map<string, number[]>();
 
@@ -51,9 +52,33 @@ export function createMemoryLoginRateLimiter(
     return timestamps;
   }
 
+  // The per-key prune above only runs when that key is retried, so a caller
+  // spraying fresh keys (the key is header-derived) would otherwise grow the
+  // Map for the life of the process. Sweep everything once the Map is big,
+  // and if live keys alone exceed the cap, evict oldest-inserted first --
+  // biased eviction is acceptable here, unbounded memory is not.
+  function sweep(now: number): void {
+    if (attempts.size <= maxKeys) return;
+    for (const [key, timestamps] of attempts) {
+      const live = timestamps.filter((ts) => now - ts < windowMs);
+      if (live.length > 0) attempts.set(key, live);
+      else attempts.delete(key);
+    }
+    if (attempts.size > maxKeys) {
+      const excess = attempts.size - maxKeys;
+      let evicted = 0;
+      for (const key of attempts.keys()) {
+        if (evicted >= excess) break;
+        attempts.delete(key);
+        evicted += 1;
+      }
+    }
+  }
+
   return {
     async limit(key: string) {
       const now = Date.now();
+      sweep(now);
       const timestamps = prune(key, now);
       if (timestamps.length >= maxAttempts) {
         return { success: false, reset: (timestamps[0] ?? now) + windowMs };

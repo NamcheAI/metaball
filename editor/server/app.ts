@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import authHandler from '../api/auth.js';
 import logoutHandler from '../api/logout.js';
@@ -33,7 +34,27 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
 
   return async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
-      const pathname = new URL(req.url ?? '/', 'http://internal.invalid').pathname;
+      // Canonicalize ONCE, before any routing decision: the auth gate, the
+      // API routes and the static server must all judge the same string.
+      // Deciding exemptions on the encoded path and decoding later would let
+      // `/assets/%2E%2E/index.html` pass the gate as an asset and then
+      // normalize into the protected app shell.
+      const rawPathname = new URL(req.url ?? '/', 'http://internal.invalid').pathname;
+      let decodedPathname: string;
+      try {
+        decodedPathname = decodeURIComponent(rawPathname);
+      } catch {
+        res.statusCode = 400;
+        res.end();
+        return;
+      }
+      // Reject dot-dot segments before normalize would resolve them away.
+      if (decodedPathname.split('/').some((segment) => segment === '..' || segment === '.')) {
+        res.statusCode = 400;
+        res.end();
+        return;
+      }
+      const pathname = posix.normalize(decodedPathname);
 
       if (pathname === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
         sendJson(res, 200, { ok: true });

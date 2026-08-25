@@ -113,6 +113,25 @@ test('enabled auth mode redirects unauthenticated requests and exempts /login an
     const assetSubtree = await fetch(`${base}/assets/missing.css`, { redirect: 'manual' });
     assert.equal(assetSubtree.status, 404);
 
+    // The exempt /assets/ subtree must never SPA-fall-back to the gated app
+    // shell: an extensionless miss is a hard 404, not index.html.
+    const assetShellAlias = await fetch(`${base}/assets/anything`, { redirect: 'manual' });
+    assert.equal(assetShellAlias.status, 404);
+
+    // The gate judges the same canonical path the file server resolves:
+    // percent-encoded dot-dot under an exempt subtree must never reach the
+    // shell. WHATWG URL parsing (which app.ts applies to the raw req.url)
+    // resolves %2E%2E dot segments, so this arrives as /index.html and is
+    // gated; the app.ts decode-then-reject pass backstops anything that
+    // slips through differently. Either way: not a 200.
+    const encodedTraversal = await fetch(`${base}/assets/%2E%2E/index.html`, {
+      redirect: 'manual',
+    });
+    assert.equal(encodedTraversal.status, 302);
+    assert.equal(encodedTraversal.headers.get('location'), '/login?from=%2Findex.html');
+    const encodedSlash = await fetch(`${base}/login%2Ffoo`, { redirect: 'manual' });
+    assert.equal(encodedSlash.status, 302);
+
     const token = await createAuthToken('server-test-secret');
     const authed = await fetch(`${base}/`, {
       headers: { cookie: `${AUTH_COOKIE}=${token}` },
