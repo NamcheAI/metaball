@@ -29,6 +29,12 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
+# This image serves the intentionally public Studio editor (Jodok,
+# 2026-08-25): without it the server's fail-closed default answers 503 on
+# every page. To gate a deployment instead, override at runtime with
+# AUTH_DISABLED=0 plus AUTH_PIN/AUTH_SECRET -- deployment env beats this
+# image default.
+ENV AUTH_DISABLED=1
 
 RUN addgroup -S metaball && adduser -S metaball -G metaball
 

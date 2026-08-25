@@ -145,16 +145,17 @@ equivalent to the shared store for this deployment shape.
 `GET /api/health` always returns `200 {"ok":true}`, exempt from the auth
 gate, for the deploy contract's health check.
 
-**v1 ships with `AUTH_DISABLED=1` and no other secrets on the host.**
-`metaball.namche.ai` therefore runs open (no PIN) with AI material rendering
-returning its normal "not configured" 503. Omitting `AUTH_PIN`/`AUTH_SECRET`
+**The image itself sets `AUTH_DISABLED=1`** (see the Dockerfile): the
+container is the intentionally public Studio editor, and the host passes no
+env at all. AI material rendering returns its normal "not configured" 503
+until a key is provided. Note that omitting `AUTH_PIN`/`AUTH_SECRET`
 without `AUTH_DISABLED=1` does **not** make the editor open — with no auth
 env vars at all, `authConfiguration()` reports `invalid` and every
 non-exempt route (including `/`) fails closed with 503, matching the
-Vercel deployment's existing fail-closed behavior. The PIN gate and AI
-rendering both become available once an env file with
-`AUTH_PIN`/`AUTH_SECRET` and/or `OPENAI_API_KEY` is added to the host
-out-of-band (dropping `AUTH_DISABLED`).
+Vercel deployment's existing fail-closed behavior. To gate a deployment
+of this image, override at runtime: `AUTH_DISABLED=0` plus
+`AUTH_PIN`/`AUTH_SECRET` (deployment env beats the image default), and add
+`OPENAI_API_KEY` to enable AI rendering.
 
 ## How to use
 
