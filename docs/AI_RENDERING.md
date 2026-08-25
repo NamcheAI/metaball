@@ -11,7 +11,7 @@ current 3D canvas (Image 1: shape + camera)
                          + optional material reference (Image 2)
                          + generic intent parameters
                                       ↓
-                         POST /api/render (authenticated)
+                         POST /api/render (no auth -- public)
                                       ↓
                          server-side provider adapter
                                       ↓
@@ -62,8 +62,14 @@ cost guardrail.
 
 `OPENAI_API_KEY` must remain server-only. Do not prefix it with `VITE_`; Vite
 variables with that prefix are intentionally shipped to the browser. Production
-deployments set the same variable in the server runtime. `/api/render` is covered
-by the Studio PIN middleware.
+deployments set the same variable in the server runtime.
+
+**`/api/render` has no authentication** -- the Studio editor is a public
+deployment (see [`editor/README.md`](../editor/README.md)) and there is no PIN
+gate in front of it any more. Anyone who can reach the deployment can call
+this endpoint and spend the configured provider's credits. Do not set
+`OPENAI_API_KEY` on a public deployment without adding some other protection
+in front of it first (e.g. a reverse-proxy auth layer or IP allowlist).
 
 ## Code boundaries
 
