@@ -16,6 +16,23 @@
   --font-heading: var(--font-display);
 }
 
+/* Make `.dark` work on a section, not only on <html>.
+
+   A custom property resolves its var() references where it is DECLARED. The
+   design system declares `--background: var(--surface-page)` on :root and
+   re-points `--surface-page` under `.dark`; when both sit on the root element
+   they land together, but a `.dark` further down the tree flips the token and
+   inherits the already-resolved alias. Four aliases are affected — the ones
+   the shadcn integration leaves to follow their tokens. Re-declaring them
+   against the very same tokens changes nothing at the root and lets the intro
+   paint a night band inside a light page without a second palette. */
+.dark {
+  --background: var(--surface-page);
+  --foreground: var(--text-primary);
+  --ring: var(--focus-ring);
+  --destructive: var(--color-error-base);
+}
+
 *,
 *::before,
 *::after {

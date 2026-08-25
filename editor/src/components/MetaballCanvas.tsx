@@ -13,7 +13,6 @@ import {
   edgeTubeFactor,
   effectiveNodeRadius,
   getMetaballShapes,
-  inwardGooStd,
   inwardTubeScale,
   isEditableCell,
   isInner,
@@ -25,6 +24,7 @@ import {
   type NodeId,
   type Theme,
 } from '../lib/model';
+import GooFilter from './GooFilter';
 
 type Props = {
   mode: Mode;
@@ -321,25 +321,12 @@ const MetaballCanvas = forwardRef<SVGSVGElement, Props>(function MetaballCanvas(
       }}
     >
       <defs>
-        <filter
+        <GooFilter
           id="goo"
-          x="-40%"
-          y="-40%"
-          width="180%"
-          height="180%"
-          colorInterpolationFilters="sRGB"
-        >
-          <feGaussianBlur
-            in="SourceGraphic"
-            stdDeviation={inwardGooStd(gooStd, inwardPull)}
-            result="blur"
-          />
-          <feColorMatrix
-            in="blur"
-            mode="matrix"
-            values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${gooThreshold} ${-gooThreshold / 2}`}
-          />
-        </filter>
+          gooStd={gooStd}
+          gooThreshold={gooThreshold}
+          inwardPull={inwardPull}
+        />
       </defs>
 
       <g className="grid-layer">

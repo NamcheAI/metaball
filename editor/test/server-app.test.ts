@@ -50,8 +50,10 @@ test('the editor is public: every route is reachable with no authentication', as
     assert.equal(root.status, 200);
     assert.equal(await root.text(), '<html>app shell</html>');
 
+    // /studio is the editor's own route; the SPA fallback has to serve the shell.
     const nested = await fetch(`${base}/studio`, { redirect: 'manual' });
     assert.equal(nested.status, 200);
+    assert.equal(await nested.text(), '<html>app shell</html>');
   });
 });
 

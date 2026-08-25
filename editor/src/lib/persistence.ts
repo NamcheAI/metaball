@@ -17,6 +17,8 @@ import {
   RADIUS_MIN,
   TUBE_FACTOR_MAX,
   TUBE_FACTOR_MIN,
+  CANVAS_THEMES,
+  type CanvasThemeId,
   clampSurfaceSamplerCount,
   clampSurfaceSamplerPointSize,
   clampSurfaceSamplerSphereSize,
@@ -309,8 +311,17 @@ export function normalizeDocument(input: unknown): Document {
     : normalized;
 }
 
-export function initialDocument(): Document {
-  return loadDocument() ?? clonePreset(DEFAULT_PRESET);
+/**
+ * A stored document always wins. Only when there is nothing to restore does the
+ * UI theme get a say: arriving in a dark interface, a brand-new document starts
+ * on the night canvas so the artwork is not a floodlight. This reads nothing and
+ * writes nothing — the stored shape is unchanged.
+ */
+export function initialDocument(canvasTheme: CanvasThemeId = 'day'): Document {
+  const stored = loadDocument();
+  if (stored) return stored;
+  const fresh = clonePreset(DEFAULT_PRESET);
+  return { ...fresh, theme: { ...CANVAS_THEMES[canvasTheme] } };
 }
 
 export function serializeDocument(doc: Document): string {

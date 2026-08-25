@@ -51,6 +51,9 @@ import {
   THEME_PRESETS,
   TUBE_FACTOR_MIN,
   TUBE_FACTOR_MAX,
+  CANVAS_THEMES,
+  canvasThemeId,
+  type CanvasThemeId,
   type Mode,
   type PngScale,
   type Size,
@@ -488,6 +491,32 @@ export default function Toolbar({
 
               {view === '2d' && (
                 <Section value="appearance" title="Appearance">
+                  {/* The canvas theme is part of the document, so what you see
+                      here is what an export looks like — no presentation-only
+                      dark mode for the artwork. */}
+                  <div className="flex flex-col gap-1.5">
+                    <GroupLabel>Canvas</GroupLabel>
+                    <Segmented
+                      label="Canvas theme"
+                      value={canvasThemeId(theme)}
+                      onValueChange={(id: CanvasThemeId) => {
+                        onThemeChange({ ...CANVAS_THEMES[id] });
+                        onThemeCommit();
+                      }}
+                      options={[
+                        {
+                          value: 'day',
+                          label: 'Day',
+                          hint: 'White ground, black mark, full-strength raster.',
+                        },
+                        {
+                          value: 'night',
+                          label: 'Night',
+                          hint: 'Erebos ground, Selene mark, raster on the night ramp.',
+                        },
+                      ]}
+                    />
+                  </div>
                   <ColorField
                     label="Mark"
                     value={theme.ink}
