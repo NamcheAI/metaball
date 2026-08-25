@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+/* The shadcn runtime CSS: the data-* custom variants (data-open,
+   data-checked, data-horizontal, …) the Base UI components' classes are
+   written against, plus the accordion keyframes. Without it those variants
+   compile to nothing — slider tracks lose their height, state styles no-op. */
+@import "shadcn/tailwind.css";
 @custom-variant dark (&:is(.dark *));
 @import "@namche/design-tokens/styles.css";
 @import "@namche/design-tokens/tailwind";
