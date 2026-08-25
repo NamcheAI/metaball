@@ -64,8 +64,12 @@ In Project → Settings → Environment Variables, add:
 Apply to **Production** (and Preview if you want PIN on preview URLs too).
 Create or connect an Upstash Redis database through the Vercel Marketplace first;
 the shared store enforces five PIN attempts per source across all function instances.
-When authentication is enabled, login fails closed if this store is unavailable.
-Only intentionally public Vercel deployments should set `AUTH_DISABLED=1`; omitting
+When Upstash is configured, login rate limiting also fails closed if the store
+times out. Without Upstash configured, login on Vercel fails closed (503): a
+per-instance in-memory window would hand every cold-started function a fresh
+attempt budget, so serverless never falls back. (The self-hosted server below
+does opt in to the in-memory fallback — it is one long-lived process.) Only
+intentionally public Vercel deployments should set `AUTH_DISABLED=1`; omitting
 credentials alone never disables authentication.
 
 ### 4. Deploy
@@ -94,6 +98,63 @@ see [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
 
 **Note:** This is lightweight access control, not enterprise auth. Do not reuse the
 PIN for sensitive data; rotate it if shared widely.
+
+## Self-hosted container
+
+For metaball.namche.ai the editor also ships as a plain Docker image, built
+from the repo-root `Dockerfile`, with a small Node server at
+[`server/`](server) standing in for Vercel's static hosting + middleware +
+serverless functions. It serves the same `dist/` build, applies the same
+`middleware.ts` auth semantics, and reuses the same `api/*.ts` handlers and
+`lib/*.ts` logic through thin adapters — nothing in the request-handling
+logic is forked between the two deployment targets.
+
+### Build and run
+
+```bash
+# from the repo root
+docker build -t metaball-editor .
+docker run -p 8080:8080 metaball-editor
+```
+
+or locally without Docker, after `npm run build`:
+
+```bash
+npm run build:server -w metaball-editor   # compiles server/ + api/ + lib/ to dist-server/
+npm run serve -w metaball-editor          # node dist-server/server/index.js
+```
+
+### Environment variables
+
+| Name                        | Value                                                          |
+| --------------------------- | --------------------------------------------------------------- |
+| `PORT`                      | Port to listen on (default `8080`)                               |
+| `AUTH_PIN`                  | PIN gate, same as Vercel (unset = auth disabled)                 |
+| `AUTH_SECRET`                | Long random signing string, required alongside `AUTH_PIN`        |
+| `AUTH_DISABLED`             | Set to `1` for an intentionally public deployment                 |
+| `UPSTASH_REDIS_REST_URL`    | Optional: shared login rate limiting across instances             |
+| `UPSTASH_REDIS_REST_TOKEN`  | Optional: shared login rate limiting across instances             |
+| `OPENAI_API_KEY`            | Optional server-only key for AI material renders                  |
+| `OPENAI_IMAGE_MODEL`        | Optional model override (default `gpt-image-2`)                   |
+
+Without `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN`, login rate
+limiting falls back to an in-memory sliding window scoped to the single
+running process — this container is deployed as one instance, so that is
+equivalent to the shared store for this deployment shape.
+
+`GET /api/health` always returns `200 {"ok":true}`, exempt from the auth
+gate, for the deploy contract's health check.
+
+**v1 ships with `AUTH_DISABLED=1` and no other secrets on the host.**
+`metaball.namche.ai` therefore runs open (no PIN) with AI material rendering
+returning its normal "not configured" 503. Omitting `AUTH_PIN`/`AUTH_SECRET`
+without `AUTH_DISABLED=1` does **not** make the editor open — with no auth
+env vars at all, `authConfiguration()` reports `invalid` and every
+non-exempt route (including `/`) fails closed with 503, matching the
+Vercel deployment's existing fail-closed behavior. The PIN gate and AI
+rendering both become available once an env file with
+`AUTH_PIN`/`AUTH_SECRET` and/or `OPENAI_API_KEY` is added to the host
+out-of-band (dropping `AUTH_DISABLED`).
 
 ## How to use
 

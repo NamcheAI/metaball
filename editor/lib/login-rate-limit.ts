@@ -11,6 +11,7 @@ export type SharedLoginRateLimiter = {
 };
 
 let sharedLimiter: SharedLoginRateLimiter | undefined;
+let memoryLimiter: SharedLoginRateLimiter | undefined;
 
 export type LoginAttempt = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
@@ -29,11 +30,72 @@ export function loginRateLimitKey(req: Pick<VercelRequest, 'headers'>): string {
   );
 }
 
-function sharedLoginRateLimiter(): SharedLoginRateLimiter {
-  if (!sharedLimiter) {
-    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error('Shared login rate limiting is not configured');
+/**
+ * Single-process in-memory sliding window. Used as the fallback when no
+ * shared store is configured (self-hosted server with no Upstash env), and
+ * as the last resort so login rate limiting can always be constructed.
+ * Per-instance only: on a horizontally scaled deployment each instance
+ * tracks attempts independently, which is why the shared Upstash-backed
+ * limiter is preferred whenever it is configured.
+ */
+export function createMemoryLoginRateLimiter(
+  maxAttempts = MAX_ATTEMPTS,
+  windowMs = WINDOW_MS,
+  maxKeys = 10_000,
+): SharedLoginRateLimiter {
+  const attempts = new Map<string, number[]>();
+
+  function prune(key: string, now: number): number[] {
+    const timestamps = (attempts.get(key) ?? []).filter((ts) => now - ts < windowMs);
+    if (timestamps.length > 0) attempts.set(key, timestamps);
+    else attempts.delete(key);
+    return timestamps;
+  }
+
+  // The per-key prune above only runs when that key is retried, so a caller
+  // spraying fresh keys (the key is header-derived) would otherwise grow the
+  // Map for the life of the process. Sweep everything once the Map is big,
+  // and if live keys alone exceed the cap, evict oldest-inserted first --
+  // biased eviction is acceptable here, unbounded memory is not.
+  function sweep(now: number): void {
+    if (attempts.size <= maxKeys) return;
+    for (const [key, timestamps] of attempts) {
+      const live = timestamps.filter((ts) => now - ts < windowMs);
+      if (live.length > 0) attempts.set(key, live);
+      else attempts.delete(key);
     }
+    if (attempts.size > maxKeys) {
+      const excess = attempts.size - maxKeys;
+      let evicted = 0;
+      for (const key of attempts.keys()) {
+        if (evicted >= excess) break;
+        attempts.delete(key);
+        evicted += 1;
+      }
+    }
+  }
+
+  return {
+    async limit(key: string) {
+      const now = Date.now();
+      sweep(now);
+      const timestamps = prune(key, now);
+      if (timestamps.length >= maxAttempts) {
+        return { success: false, reset: (timestamps[0] ?? now) + windowMs };
+      }
+      timestamps.push(now);
+      attempts.set(key, timestamps);
+      return { success: true, reset: now + windowMs };
+    },
+    async resetUsedTokens(key: string) {
+      attempts.delete(key);
+    },
+  };
+}
+
+function upstashLoginRateLimiter(): SharedLoginRateLimiter | undefined {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return undefined;
+  if (!sharedLimiter) {
     sharedLimiter = new Ratelimit({
       redis: Redis.fromEnv(),
       limiter: Ratelimit.slidingWindow(MAX_ATTEMPTS, '15 m'),
@@ -45,10 +107,38 @@ function sharedLoginRateLimiter(): SharedLoginRateLimiter {
   return sharedLimiter;
 }
 
+let memoryFallbackEnabled = false;
+
+/**
+ * Opt in to the in-memory fallback. Only the self-hosted server calls this,
+ * at boot: it is a single long-lived process, where a per-process sliding
+ * window genuinely limits an attacker. Serverless deployments must NOT
+ * enable it -- each instance would track attempts independently, so every
+ * cold start would hand out a fresh budget. There, no Upstash config keeps
+ * the original deliberate behavior: fail closed (503) rather than limit
+ * in name only.
+ */
+export function enableMemoryLoginRateLimitFallback(): void {
+  memoryFallbackEnabled = true;
+}
+
+/**
+ * Prefer the shared Upstash-backed limiter when it is configured (protects
+ * against multi-instance deployments, e.g. Vercel). Without it, fall back
+ * to the in-memory limiter only where that has been explicitly enabled;
+ * otherwise fail closed, as before.
+ */
+function defaultLoginRateLimiter(): SharedLoginRateLimiter {
+  const upstash = upstashLoginRateLimiter();
+  if (upstash) return upstash;
+  if (memoryFallbackEnabled) return (memoryLimiter ??= createMemoryLoginRateLimiter());
+  throw new Error('Shared login rate limiting is not configured');
+}
+
 /** Atomically reserve one verification attempt in shared storage before doing PIN work. */
 export async function takeLoginAttempt(
   key: string,
-  limiter: SharedLoginRateLimiter = sharedLoginRateLimiter(),
+  limiter: SharedLoginRateLimiter = defaultLoginRateLimiter(),
   now = Date.now(),
 ): Promise<LoginAttempt> {
   const result = await limiter.limit(key);
@@ -67,7 +157,7 @@ export async function takeLoginAttempt(
 
 export async function resetLoginAttempts(
   key: string,
-  limiter: SharedLoginRateLimiter = sharedLoginRateLimiter(),
+  limiter: SharedLoginRateLimiter = defaultLoginRateLimiter(),
 ): Promise<void> {
   await limiter.resetUsedTokens(key);
 }
