@@ -1,4 +1,8 @@
-@import url('/theme.css');
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
+@import "@namche/design-tokens/styles.css";
+@import "@namche/design-tokens/tailwind";
+@import "@namche/design-tokens/shadcn";
 
 *,
 *::before,

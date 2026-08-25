@@ -1,5 +1,7 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AIRenderRequest } from './lib/ai-render-contract.js'
 import { AIRenderError, runOpenAIImageRender } from './lib/openai-image-render.js'
@@ -61,7 +63,13 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      tailwindcss(),
       localAIRenderApi({ apiKey: env.OPENAI_API_KEY, model: env.OPENAI_IMAGE_MODEL }),
     ],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+    },
   }
 })
