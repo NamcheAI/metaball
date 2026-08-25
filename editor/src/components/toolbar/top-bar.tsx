@@ -1,56 +1,15 @@
-import { MoonIcon, Redo2Icon, SunIcon, Undo2Icon } from 'lucide-react';
+import { Redo2Icon, Undo2Icon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useTheme, type Theme } from '@/hooks/use-theme';
+import { ThemeMenu } from '@/components/theme-menu';
 import type { Mode } from '@/lib/model';
 
 import { Segmented } from './segmented';
 
 type ViewMode = '2d' | '3d';
-
-const THEME_OPTIONS: ReadonlyArray<{ value: Theme; label: string }> = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
-];
-
-function ThemeMenu() {
-  const { theme, setTheme } = useTheme();
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="icon-sm" aria-label="Theme">
-            <SunIcon className="dark:hidden" />
-            <MoonIcon className="hidden dark:block" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="end" className="w-36">
-        {THEME_OPTIONS.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            data-selected={theme === option.value || undefined}
-            className="data-selected:font-medium"
-            onClick={() => setTheme(option.value)}
-          >
-            {option.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 export function TopBar({
   view,

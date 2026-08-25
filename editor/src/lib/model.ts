@@ -131,10 +131,57 @@ export function edgePull(
   return overrides?.[edgeKey(a, b)] ?? globalPull;
 }
 
+/**
+ * The canvas theme is CONTENT, not chrome: it is stored in the document and it
+ * is what an export looks like. Day is the engine default (white ground, black
+ * mark, the Namche raster at full strength). Night is its counterpart on the
+ * design system's night ground.
+ *
+ * Night is derived, not invented — `@namche/design-tokens` ships no dark raster
+ * pair. Ground and ink are the tokens themselves (`--gaia-erebos`,
+ * `--gaia-selene`). The two raster cells keep the exact hue of
+ * `--namche-raster-pink` (297°) and `--namche-raster-cyan` (196°) and are
+ * re-placed at S 30% / L 28%, which lands each one on the night surface ramp:
+ * #5B325D sits at --night-line's luminance, #32515D at --night-control's.
+ * Selene ink clears 8.9:1 and 7.4:1 on them.
+ */
+export const DAY_THEME: Theme = DEFAULT_THEME;
+export const NIGHT_THEME: Theme = {
+  /** raster-pink hue on the night ramp (≈ --night-line) */
+  pink: '#5B325D',
+  /** raster-cyan hue on the night ramp (≈ --night-control) */
+  blue: '#32515D',
+  /** --gaia-selene */
+  ink: '#F1EFE8',
+  /** --gaia-erebos */
+  bg: '#262626',
+};
+
 export type ThemePreset = { id: string; label: string; theme: Theme };
 export const THEME_PRESETS: ThemePreset[] = [
-  { id: 'default', label: 'Namche raster', theme: DEFAULT_THEME },
+  { id: 'default', label: 'Namche raster', theme: DAY_THEME },
+  { id: 'night', label: 'Namche raster, night', theme: NIGHT_THEME },
 ];
+
+export type CanvasThemeId = 'day' | 'night';
+export const CANVAS_THEMES: Record<CanvasThemeId, Theme> = {
+  day: DAY_THEME,
+  night: NIGHT_THEME,
+};
+
+const sameColor = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+const sameTheme = (a: Theme, b: Theme): boolean =>
+  sameColor(a.bg, b.bg) &&
+  sameColor(a.ink, b.ink) &&
+  sameColor(a.pink, b.pink) &&
+  sameColor(a.blue, b.blue);
+
+/** Which canvas preset this theme is, exactly; `null` once any color is edited. */
+export function canvasThemeId(theme: Theme): CanvasThemeId | null {
+  if (sameTheme(theme, DAY_THEME)) return 'day';
+  if (sameTheme(theme, NIGHT_THEME)) return 'night';
+  return null;
+}
 
 const DEFAULT_EDITOR_PRESET_ID = 'loop';
 export const PRESETS: Preset[] = EDITOR_PRESET_IDS.flatMap((id) => {

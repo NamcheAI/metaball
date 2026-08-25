@@ -83,7 +83,13 @@ function refImageExtension(mime: string): string {
 type ViewMode = '2d' | '3d';
 
 export default function App() {
-  const [history, setHistory] = useState<HistoryState>(() => createHistory(initialDocument()));
+  const [history, setHistory] = useState<HistoryState>(() =>
+    // Only a first-ever document follows the interface into the dark; after
+    // that the canvas theme is the document's own, switched from Appearance.
+    createHistory(
+      initialDocument(document.documentElement.classList.contains('dark') ? 'night' : 'day'),
+    ),
+  );
   const [selected, setSelected] = useState<NodeId | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('2d');
