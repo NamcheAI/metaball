@@ -21,12 +21,28 @@ export function renderRateLimitBudget(env: Record<string, string | undefined> = 
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_MAX_PER_HOUR;
 }
 
-/** First X-Forwarded-For hop (the rp sets it), else the socket address. */
-export function renderRateLimitKey(req: IncomingMessage): string {
-  const header = req.headers['x-forwarded-for'];
-  const raw = Array.isArray(header) ? header[0] : header;
-  const first = raw?.split(',')[0]?.trim();
-  return first || req.socket.remoteAddress || 'unknown-source';
+export function renderRateLimitTrustProxy(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.TRUST_PROXY === '1';
+}
+
+/**
+ * X-Forwarded-For is client-forgeable, so it is only honored when the
+ * deployment declares a trusted proxy in front (TRUST_PROXY=1 — the estate's
+ * rp OVERWRITES the header with Cloudflare's CF-Connecting-IP, one trusted
+ * value). Without that declaration — e.g. the documented direct
+ * `docker run` — the key is the socket address, which a caller cannot mint
+ * fresh per request.
+ */
+export function renderRateLimitKey(req: IncomingMessage, trustProxy: boolean): string {
+  if (trustProxy) {
+    const header = req.headers['x-forwarded-for'];
+    const raw = Array.isArray(header) ? header[0] : header;
+    const forwarded = raw?.split(',')[0]?.trim();
+    if (forwarded) return forwarded;
+  }
+  return req.socket.remoteAddress || 'unknown-source';
 }
 
 export type RenderRateLimiter = {

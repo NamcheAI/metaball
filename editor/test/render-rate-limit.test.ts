@@ -3,7 +3,17 @@ import test from 'node:test';
 import {
   createRenderRateLimiter,
   renderRateLimitBudget,
+  renderRateLimitKey,
+  renderRateLimitTrustProxy,
 } from '../server/render-rate-limit';
+import type { IncomingMessage } from 'node:http';
+
+function fakeReq(xff: string | undefined, socketAddress = '10.0.0.9'): IncomingMessage {
+  return {
+    headers: xff === undefined ? {} : { 'x-forwarded-for': xff },
+    socket: { remoteAddress: socketAddress },
+  } as unknown as IncomingMessage;
+}
 
 test('the render limiter allows the hourly budget, then blocks with a retry hint', () => {
   const limiter = createRenderRateLimiter(2, 3_600_000);
@@ -39,6 +49,16 @@ test('the key map is bounded: keys past the cap are evicted oldest-first', () =>
   // returning it to a fresh budget — bounded memory over perfect fairness.
   assert.equal(limiter.take('k4', t0 + 4).allowed, true);
   assert.equal(limiter.take('k1', t0 + 5).allowed, true);
+});
+
+test('X-Forwarded-For only keys the limiter behind a declared trusted proxy', () => {
+  // Direct exposure: a forged header must not mint fresh buckets.
+  assert.equal(renderRateLimitKey(fakeReq('6.6.6.6'), false), '10.0.0.9');
+  // Behind the rp (which overwrites the header with one trusted value).
+  assert.equal(renderRateLimitKey(fakeReq('203.0.113.7'), true), '203.0.113.7');
+  assert.equal(renderRateLimitKey(fakeReq(undefined), true), '10.0.0.9');
+  assert.equal(renderRateLimitTrustProxy({}), false);
+  assert.equal(renderRateLimitTrustProxy({ TRUST_PROXY: '1' }), true);
 });
 
 test('the budget env knob accepts integers, 0, and rejects junk', () => {
