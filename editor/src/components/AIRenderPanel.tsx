@@ -1,4 +1,11 @@
 import { useState } from 'react';
+
+import { Hint, SelectField } from './toolbar/fields';
+import { SliderField } from './toolbar/slider-field';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AI_RENDER_BACKGROUNDS,
   AI_RENDER_QUALITIES,
@@ -16,10 +23,6 @@ type Props = {
   onClearReference: () => void;
   onRender: (params: AIRenderParams) => Promise<AIRenderResult>;
 };
-
-function percentageLabel(value: number): string {
-  return `${Math.round(value)}%`;
-}
 
 export default function AIRenderPanel({
   canRender,
@@ -50,146 +53,125 @@ export default function AIRenderPanel({
   };
 
   return (
-    <div className="ai-render-panel">
-      <p className="hint tight">
+    <div className="flex flex-col gap-3">
+      <Hint>
         Image 1 locks the current shape and camera. An optional Image 2 supplies any material —
         nacre, coral, moss, grass, fur or something entirely new.
-      </p>
+      </Hint>
 
-      <label className="ai-field">
-        <span>Material direction</span>
-        <textarea
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-xs font-normal text-muted-foreground">Material direction</Label>
+        <Textarea
           rows={4}
+          className="min-h-20 font-mono text-xs"
           value={params.materialDescription}
           onChange={(event) => patch('materialDescription', event.target.value)}
         />
-      </label>
-
-      <div className="ai-range">
-        <label htmlFor="ai-shape-fidelity">Shape fidelity</label>
-        <output>{percentageLabel(params.geometryFidelity)}</output>
-        <input
-          id="ai-shape-fidelity"
-          type="range"
-          min={0}
-          max={100}
-          value={params.geometryFidelity}
-          onChange={(event) => patch('geometryFidelity', Number(event.target.value))}
-        />
-      </div>
-      <div className="ai-range">
-        <label htmlFor="ai-material-influence">Material influence</label>
-        <output>{percentageLabel(params.materialInfluence)}</output>
-        <input
-          id="ai-material-influence"
-          type="range"
-          min={0}
-          max={100}
-          value={params.materialInfluence}
-          onChange={(event) => patch('materialInfluence', Number(event.target.value))}
-        />
       </div>
 
-      <label className="ai-field">
-        <span>Lighting</span>
-        <textarea
+      <SliderField
+        label="Shape fidelity"
+        value={params.geometryFidelity}
+        min={0}
+        max={100}
+        step={1}
+        onChange={(value) => patch('geometryFidelity', value)}
+      />
+      <SliderField
+        label="Material influence"
+        value={params.materialInfluence}
+        min={0}
+        max={100}
+        step={1}
+        onChange={(value) => patch('materialInfluence', value)}
+      />
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-xs font-normal text-muted-foreground">Lighting</Label>
+        <Textarea
           rows={2}
+          className="min-h-14 font-mono text-xs"
           value={params.lightingDescription}
           onChange={(event) => patch('lightingDescription', event.target.value)}
         />
-      </label>
-      <label className="ai-field">
-        <span>Background</span>
-        <textarea
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-xs font-normal text-muted-foreground">Background</Label>
+        <Textarea
           rows={2}
-          value={params.backgroundDescription}
+          className="min-h-14 font-mono text-xs"
           disabled={params.background === 'transparent'}
+          value={params.backgroundDescription}
           onChange={(event) => patch('backgroundDescription', event.target.value)}
         />
-      </label>
-
-      <div className="ai-render-options">
-        <label className="select-row">
-          <span>Quality</span>
-          <select
-            value={params.quality}
-            onChange={(event) => patch('quality', event.target.value as AIRenderParams['quality'])}
-          >
-            {AI_RENDER_QUALITIES.map((quality) => (
-              <option key={quality} value={quality}>
-                {quality}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="select-row">
-          <span>Size</span>
-          <select
-            value={params.size}
-            onChange={(event) => patch('size', event.target.value as AIRenderParams['size'])}
-          >
-            {AI_RENDER_SIZES.map((size) => (
-              <option key={size} value={size}>
-                {size.replace('x', ' × ')}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="select-row">
-          <span>Canvas</span>
-          <select
-            value={params.background}
-            onChange={(event) =>
-              patch('background', event.target.value as AIRenderParams['background'])
-            }
-          >
-            {AI_RENDER_BACKGROUNDS.map((background) => (
-              <option key={background} value={background}>
-                {background}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
-      <div className="ai-reference">
-        <p className="hint tight">
-          {referenceName ? `Material reference: ${referenceName}` : 'No material image attached.'}
-        </p>
-        <div className="button-grid">
-          <button className="chip" onClick={onAttachReference}>
-            {referenceName ? 'Replace reference' : 'Attach material image'}
-          </button>
-          <button className="chip" disabled={!referenceName} onClick={onClearReference}>
-            Clear
-          </button>
-        </div>
+      <SelectField
+        label="Quality"
+        value={params.quality}
+        onValueChange={(value) => patch('quality', value as AIRenderParams['quality'])}
+        options={AI_RENDER_QUALITIES.map((quality) => ({ value: quality, label: quality }))}
+      />
+      <SelectField
+        label="Size"
+        value={params.size}
+        onValueChange={(value) => patch('size', value as AIRenderParams['size'])}
+        options={AI_RENDER_SIZES.map((size) => ({ value: size, label: size.replace('x', ' × ') }))}
+      />
+      <SelectField
+        label="Canvas"
+        value={params.background}
+        onValueChange={(value) => patch('background', value as AIRenderParams['background'])}
+        options={AI_RENDER_BACKGROUNDS.map((background) => ({
+          value: background,
+          label: background,
+        }))}
+      />
+
+      <Hint>
+        {referenceName ? `Material reference: ${referenceName}` : 'No material image attached.'}
+      </Hint>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" size="sm" onClick={onAttachReference}>
+          {referenceName ? 'Replace reference' : 'Attach material image'}
+        </Button>
+        <Button variant="outline" size="sm" disabled={!referenceName} onClick={onClearReference}>
+          Clear
+        </Button>
       </div>
 
-      <button
-        className="ai-render-action"
+      <Button
+        className="w-full"
         disabled={!canRender || status === 'rendering'}
         onClick={() => void render()}
       >
         {status === 'rendering' ? 'Rendering…' : 'Render with AI'}
-      </button>
-      {!canRender && <p className="ai-message">Open the 3D view and wait for the shape.</p>}
+      </Button>
+      {!canRender && <Hint>Open the 3D view and wait for the shape.</Hint>}
       {error && (
-        <p className="ai-message error" role="alert">
+        <p className="text-xs leading-snug text-destructive" role="alert">
           {error}
         </p>
       )}
 
       {result && (
-        <figure className="ai-render-result">
-          <img src={result.image} alt="AI-rendered metaball material study" />
-          <figcaption>
-            <span>{result.model}</span>
-            <button className="chip" onClick={() => downloadAIRender(result)}>
+        <Card size="sm" className="gap-0 py-0">
+          <CardContent className="px-0">
+            <img
+              src={result.image}
+              alt="AI-rendered metaball material study"
+              className="block aspect-square w-full bg-muted object-contain"
+            />
+          </CardContent>
+          <CardFooter className="flex items-center justify-between gap-2 border-t px-3 py-2">
+            <span className="truncate font-mono text-[0.625rem] text-muted-foreground">
+              {result.model}
+            </span>
+            <Button variant="outline" size="xs" onClick={() => downloadAIRender(result)}>
               Download PNG
-            </button>
-          </figcaption>
-        </figure>
+            </Button>
+          </CardFooter>
+        </Card>
       )}
     </div>
   );

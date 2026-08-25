@@ -1,6 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2Icon } from 'lucide-react';
+import { toast } from 'sonner';
 import MetaballCanvas from './components/MetaballCanvas';
 import Toolbar from './components/Toolbar';
+import { Toaster } from '@/components/ui/sonner';
 import { copySvgToClipboard, exportPng, exportSvg, type FlattenSpec } from './lib/export';
 import {
   applyGrowthDisplay,
@@ -56,7 +59,6 @@ import { getLiveMarchingCubes, type Canvas3DHandle } from './lib/canvas3dHandle'
 import type { RefImageBytes } from './lib/exportBlenderHandoff';
 import { renderAIMaterial } from './lib/aiRender';
 import type { AIRenderParams, AIRenderResult } from '../lib/ai-render-contract';
-import './App.css';
 
 // Loaded on demand: keeps three.js / react-three-fiber out of the initial
 // bundle for users who only ever use the 2D editor.
@@ -470,7 +472,7 @@ export default function App() {
     requestAnimationFrame(() => {
       const mesh = resolveLiveMesh();
       if (!mesh || mesh.count === 0) {
-        window.alert('Switch to 3D view and wait for the mesh to build, then try again.');
+        toast.error('Switch to 3D view and wait for the mesh to build, then try again.');
         return;
       }
       void import('./lib/export3d')
@@ -484,7 +486,7 @@ export default function App() {
         )
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'GLB export failed.';
-          window.alert(message);
+          toast.error(message);
         });
     });
   };
@@ -499,11 +501,11 @@ export default function App() {
         handle?.canvas ??
         (document.querySelector('.metaball-3d-canvas canvas') as HTMLCanvasElement | null);
       if (!mesh || mesh.count === 0) {
-        window.alert('Switch to 3D view and wait for the mesh to build, then try again.');
+        toast.error('Switch to 3D view and wait for the mesh to build, then try again.');
         return;
       }
       if (!canvas) {
-        window.alert('3D canvas is not ready yet — wait a moment and try again.');
+        toast.error('3D canvas is not ready yet — wait a moment and try again.');
         return;
       }
       void import('./lib/exportBlenderHandoff')
@@ -520,7 +522,7 @@ export default function App() {
         )
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'Blender handoff export failed.';
-          window.alert(message);
+          toast.error(message);
         });
     });
   };
@@ -558,7 +560,7 @@ export default function App() {
       setSelected(null);
       setSelectedEdge(null);
     } catch {
-      window.alert('Could not import JSON. Check the file format.');
+      toast.error('Could not import JSON. Check the file format.');
     }
   };
 
@@ -588,8 +590,18 @@ export default function App() {
   // Keyboard shortcuts.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // Base UI widgets are not native form elements, so the tag check alone
+      // would let canvas shortcuts fire while a slider, menu or dialog has
+      // focus.
+      if (
+        target?.closest?.(
+          'input, textarea, select, [contenteditable="true"], [role="slider"], [role="listbox"], [role="option"], [role="combobox"], [role="menu"], [role="menuitem"], [role="dialog"]',
+        )
+      )
+        return;
 
       const kb = keyboardRef.current;
       const mod = e.metaKey || e.ctrlKey;
@@ -813,225 +825,239 @@ export default function App() {
   }, [displayDoc]);
 
   return (
-    <div className="app">
-      <Toolbar
-        mode={doc.mode}
-        onModeChange={(mode) => updateDocField('mode', mode)}
-        view={view}
-        onViewChange={setView}
-        materialPreset={doc.materialPreset}
-        onMaterialPresetChange={(id) => updateDocField('materialPreset', id)}
-        lookMode={doc.lookMode}
-        onLookModeChange={(mode: LookMode) => updateDocField('lookMode', mode)}
-        liquidPreset={doc.liquidPreset}
-        onLiquidPresetChange={(id) => {
-          const preset = getLiquidPreset(id);
-          commit({
-            ...cloneDocument(doc),
-            liquidPreset: preset.id,
-            liquidParams: cloneLiquidParams(preset.params),
-            lookMode: 'liquid',
-          });
-        }}
-        liquidBackdrop={doc.liquidBackdrop}
-        onLiquidBackdropChange={(id) => updateDocField('liquidBackdrop', id)}
-        liquidParams={doc.liquidParams}
-        onLiquidParamsChange={(patch: Partial<LiquidParams>) =>
-          scrub((d) => ({
-            ...d,
-            lookMode: 'liquid',
-            liquidParams: { ...d.liquidParams, ...patch },
-          }))
-        }
-        onLiquidParamsCommit={endScrub}
-        surfaceSamplerEnabled={doc.surfaceSamplerEnabled}
-        onSurfaceSamplerEnabledChange={(v) => updateDocField('surfaceSamplerEnabled', v)}
-        surfaceSamplerMode={doc.surfaceSamplerMode}
-        onSurfaceSamplerModeChange={(mode) => updateDocField('surfaceSamplerMode', mode)}
-        surfaceSamplerCount={doc.surfaceSamplerCount}
-        onSurfaceSamplerCountChange={(v) =>
-          scrubDocField('surfaceSamplerCount', clampSurfaceSamplerCount(v))
-        }
-        onSurfaceSamplerCountCommit={endScrub}
-        surfaceSamplerPointSize={doc.surfaceSamplerPointSize}
-        onSurfaceSamplerPointSizeChange={(v) =>
-          scrubDocField('surfaceSamplerPointSize', clampSurfaceSamplerPointSize(v))
-        }
-        onSurfaceSamplerPointSizeCommit={endScrub}
-        surfaceSamplerSphereSize={doc.surfaceSamplerSphereSize}
-        onSurfaceSamplerSphereSizeChange={(v) =>
-          scrubDocField('surfaceSamplerSphereSize', clampSurfaceSamplerSphereSize(v))
-        }
-        onSurfaceSamplerSphereSizeCommit={endScrub}
-        surfaceSamplerShowMesh={doc.surfaceSamplerShowMesh}
-        onSurfaceSamplerShowMeshChange={(v) => updateDocField('surfaceSamplerShowMesh', v)}
-        surfaceSamplerAnimate={doc.surfaceSamplerAnimate}
-        onSurfaceSamplerAnimateChange={(v) => updateDocField('surfaceSamplerAnimate', v)}
-        selectedSize={selectedNode?.size ?? null}
-        onSizeChange={setSelectedSize}
-        selectedRadius={selectedRadius}
-        radiusOverridden={radiusOverridden}
-        onRadiusChange={setSelectedRadius}
-        onRadiusCommit={endScrub}
-        onRadiusReset={resetSelectedRadius}
-        onDeleteSelected={() => selected && removeNode(selected)}
-        theme={doc.theme}
-        onThemeChange={scrubTheme}
-        onThemeCommit={endScrub}
-        showGrid={doc.rasterEnabled}
-        onShowGridChange={(v) => updateDocField('rasterEnabled', v)}
-        fullGrid={doc.fullGrid}
-        onFullGridChange={(v) => updateDocField('fullGrid', v)}
-        gooStd={doc.gooStd}
-        onGooStdChange={(v) => scrubDocField('gooStd', v)}
-        onGooStdCommit={endScrub}
-        gooThreshold={doc.gooThreshold}
-        onGooThresholdChange={(v) => scrubDocField('gooThreshold', v)}
-        onGooThresholdCommit={endScrub}
-        tubeFactor={doc.tubeFactor}
-        onTubeFactorChange={(v) => scrubDocField('tubeFactor', v)}
-        onTubeFactorCommit={endScrub}
-        inwardPull={doc.inwardPull}
-        onInwardPullChange={(v) => scrubDocField('inwardPull', v)}
-        onInwardPullCommit={endScrub}
-        flattenEpsilon={doc.flattenEpsilon}
-        onFlattenEpsilonChange={(v) => scrubDocField('flattenEpsilon', v)}
-        onFlattenEpsilonCommit={endScrub}
-        flattenResolution={doc.flattenResolution}
-        onFlattenResolutionChange={(v) => scrubDocField('flattenResolution', v)}
-        onFlattenResolutionCommit={endScrub}
-        showExportPreview={showExportPreview}
-        onShowExportPreviewChange={setShowExportPreview}
-        selectedEdge={selectedEdge}
-        edgeFactor={effectiveEdgeFactor}
-        edgeFactorOverridden={edgeFactorOverridden}
-        onEdgeFactorChange={setEdgeFactor}
-        onEdgeFactorCommit={endScrub}
-        onEdgeFactorReset={resetEdgeFactor}
-        edgePull={effectiveEdgePull}
-        edgePullOverridden={edgePullOverridden}
-        onEdgePullChange={setEdgePull}
-        onEdgePullCommit={endScrub}
-        onEdgePullReset={resetEdgePull}
-        onEnableEdgeStyle={enableEdgeStyle}
-        onDisableEdgeStyle={disableEdgeStyle}
-        onRemoveEdge={removeSelectedEdge}
-        markOnly={markOnly}
-        onMarkOnlyChange={setMarkOnly}
-        pngScale={pngScale}
-        onPngScaleChange={setPngScale}
-        canUndo={canUndo(history)}
-        canRedo={canRedo(history)}
-        activePresetId={activePresetId}
-        onUndo={undo}
-        onRedo={redo}
-        onApplyPreset={applyPreset}
-        onClear={clear}
-        onExportSvg={doExportSvg}
-        onExportPng={doExportPng}
-        onCopySvg={doCopySvg}
-        onExportJson={doExportJson}
-        onExportGlb={doExportGlb}
-        onExportBlenderHandoff={doExportBlenderHandoff}
-        canAIRender={view === '3d'}
-        onAIRender={doAIRender}
-        refImageName={customRefImage?.fileName ?? null}
-        onAttachRefImageClick={() => refImageInputRef.current?.click()}
-        onClearRefImage={() => setCustomRefImage(null)}
-        onImportJsonClick={() => importRef.current?.click()}
-        radiusMin={RADIUS_MIN}
-        radiusMax={RADIUS_MAX}
-        growing={growing}
-        onGrowToggle={toggleGrowth}
-        canGrow={doc.nodes.length > 0}
-        activeMotion={activeMotion}
-        onMotionToggle={toggleMotion}
-        canMotion={doc.nodes.length > 0}
-        breakNecks={breakNecks}
-        onBreakNecksChange={setBreakNecks}
-      />
+    <>
+      <div className="grid h-dvh grid-cols-1 grid-rows-[3.5rem_auto_1fr] overflow-hidden md:grid-cols-[340px_1fr] md:grid-rows-[3.5rem_1fr]">
+        <Toolbar
+          mode={doc.mode}
+          onModeChange={(mode) => updateDocField('mode', mode)}
+          view={view}
+          onViewChange={setView}
+          materialPreset={doc.materialPreset}
+          onMaterialPresetChange={(id) => updateDocField('materialPreset', id)}
+          lookMode={doc.lookMode}
+          onLookModeChange={(mode: LookMode) => updateDocField('lookMode', mode)}
+          liquidPreset={doc.liquidPreset}
+          onLiquidPresetChange={(id) => {
+            const preset = getLiquidPreset(id);
+            commit({
+              ...cloneDocument(doc),
+              liquidPreset: preset.id,
+              liquidParams: cloneLiquidParams(preset.params),
+              lookMode: 'liquid',
+            });
+          }}
+          liquidBackdrop={doc.liquidBackdrop}
+          onLiquidBackdropChange={(id) => updateDocField('liquidBackdrop', id)}
+          liquidParams={doc.liquidParams}
+          onLiquidParamsChange={(patch: Partial<LiquidParams>) =>
+            scrub((d) => ({
+              ...d,
+              lookMode: 'liquid',
+              liquidParams: { ...d.liquidParams, ...patch },
+            }))
+          }
+          onLiquidParamsCommit={endScrub}
+          surfaceSamplerEnabled={doc.surfaceSamplerEnabled}
+          onSurfaceSamplerEnabledChange={(v) => updateDocField('surfaceSamplerEnabled', v)}
+          surfaceSamplerMode={doc.surfaceSamplerMode}
+          onSurfaceSamplerModeChange={(mode) => updateDocField('surfaceSamplerMode', mode)}
+          surfaceSamplerCount={doc.surfaceSamplerCount}
+          onSurfaceSamplerCountChange={(v) =>
+            scrubDocField('surfaceSamplerCount', clampSurfaceSamplerCount(v))
+          }
+          onSurfaceSamplerCountCommit={endScrub}
+          surfaceSamplerPointSize={doc.surfaceSamplerPointSize}
+          onSurfaceSamplerPointSizeChange={(v) =>
+            scrubDocField('surfaceSamplerPointSize', clampSurfaceSamplerPointSize(v))
+          }
+          onSurfaceSamplerPointSizeCommit={endScrub}
+          surfaceSamplerSphereSize={doc.surfaceSamplerSphereSize}
+          onSurfaceSamplerSphereSizeChange={(v) =>
+            scrubDocField('surfaceSamplerSphereSize', clampSurfaceSamplerSphereSize(v))
+          }
+          onSurfaceSamplerSphereSizeCommit={endScrub}
+          surfaceSamplerShowMesh={doc.surfaceSamplerShowMesh}
+          onSurfaceSamplerShowMeshChange={(v) => updateDocField('surfaceSamplerShowMesh', v)}
+          surfaceSamplerAnimate={doc.surfaceSamplerAnimate}
+          onSurfaceSamplerAnimateChange={(v) => updateDocField('surfaceSamplerAnimate', v)}
+          selectedSize={selectedNode?.size ?? null}
+          onSizeChange={setSelectedSize}
+          selectedRadius={selectedRadius}
+          radiusOverridden={radiusOverridden}
+          onRadiusChange={setSelectedRadius}
+          onRadiusCommit={endScrub}
+          onRadiusReset={resetSelectedRadius}
+          onDeleteSelected={() => selected && removeNode(selected)}
+          theme={doc.theme}
+          onThemeChange={scrubTheme}
+          onThemeCommit={endScrub}
+          showGrid={doc.rasterEnabled}
+          onShowGridChange={(v) => updateDocField('rasterEnabled', v)}
+          fullGrid={doc.fullGrid}
+          onFullGridChange={(v) => updateDocField('fullGrid', v)}
+          gooStd={doc.gooStd}
+          onGooStdChange={(v) => scrubDocField('gooStd', v)}
+          onGooStdCommit={endScrub}
+          gooThreshold={doc.gooThreshold}
+          onGooThresholdChange={(v) => scrubDocField('gooThreshold', v)}
+          onGooThresholdCommit={endScrub}
+          tubeFactor={doc.tubeFactor}
+          onTubeFactorChange={(v) => scrubDocField('tubeFactor', v)}
+          onTubeFactorCommit={endScrub}
+          inwardPull={doc.inwardPull}
+          onInwardPullChange={(v) => scrubDocField('inwardPull', v)}
+          onInwardPullCommit={endScrub}
+          flattenEpsilon={doc.flattenEpsilon}
+          onFlattenEpsilonChange={(v) => scrubDocField('flattenEpsilon', v)}
+          onFlattenEpsilonCommit={endScrub}
+          flattenResolution={doc.flattenResolution}
+          onFlattenResolutionChange={(v) => scrubDocField('flattenResolution', v)}
+          onFlattenResolutionCommit={endScrub}
+          showExportPreview={showExportPreview}
+          onShowExportPreviewChange={setShowExportPreview}
+          selectedEdge={selectedEdge}
+          edgeFactor={effectiveEdgeFactor}
+          edgeFactorOverridden={edgeFactorOverridden}
+          onEdgeFactorChange={setEdgeFactor}
+          onEdgeFactorCommit={endScrub}
+          onEdgeFactorReset={resetEdgeFactor}
+          edgePull={effectiveEdgePull}
+          edgePullOverridden={edgePullOverridden}
+          onEdgePullChange={setEdgePull}
+          onEdgePullCommit={endScrub}
+          onEdgePullReset={resetEdgePull}
+          onEnableEdgeStyle={enableEdgeStyle}
+          onDisableEdgeStyle={disableEdgeStyle}
+          onRemoveEdge={removeSelectedEdge}
+          markOnly={markOnly}
+          onMarkOnlyChange={setMarkOnly}
+          pngScale={pngScale}
+          onPngScaleChange={setPngScale}
+          canUndo={canUndo(history)}
+          canRedo={canRedo(history)}
+          activePresetId={activePresetId}
+          onUndo={undo}
+          onRedo={redo}
+          onApplyPreset={applyPreset}
+          onClear={clear}
+          onExportSvg={doExportSvg}
+          onExportPng={doExportPng}
+          onCopySvg={doCopySvg}
+          onExportJson={doExportJson}
+          onExportGlb={doExportGlb}
+          onExportBlenderHandoff={doExportBlenderHandoff}
+          canAIRender={view === '3d'}
+          onAIRender={doAIRender}
+          refImageName={customRefImage?.fileName ?? null}
+          onAttachRefImageClick={() => refImageInputRef.current?.click()}
+          onClearRefImage={() => setCustomRefImage(null)}
+          onImportJsonClick={() => importRef.current?.click()}
+          radiusMin={RADIUS_MIN}
+          radiusMax={RADIUS_MAX}
+          growing={growing}
+          onGrowToggle={toggleGrowth}
+          canGrow={doc.nodes.length > 0}
+          activeMotion={activeMotion}
+          onMotionToggle={toggleMotion}
+          canMotion={doc.nodes.length > 0}
+          breakNecks={breakNecks}
+          onBreakNecksChange={setBreakNecks}
+        />
 
-      <input
-        ref={importRef}
-        type="file"
-        accept="application/json,.json"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            if (typeof reader.result === 'string') doImportJson(reader.result);
-          };
-          reader.readAsText(file);
-          e.target.value = '';
-        }}
-      />
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === 'string') doImportJson(reader.result);
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+          }}
+        />
 
-      <input
-        ref={refImageInputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (!file) return;
-          void file.arrayBuffer().then((buf) => {
-            const fileName = `ref.${refImageExtension(file.type)}`;
-            setCustomRefImage({ bytes: new Uint8Array(buf), fileName });
-          });
-        }}
-      />
+        <input
+          ref={refImageInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            void file.arrayBuffer().then((buf) => {
+              const fileName = `ref.${refImageExtension(file.type)}`;
+              setCustomRefImage({ bytes: new Uint8Array(buf), fileName });
+            });
+          }}
+        />
 
-      <main
-        className="stage"
-        style={{
-          background: view === '2d' && doc.rasterEnabled ? doc.theme.bg : undefined,
-        }}
-      >
-        <div className="canvas-wrap">
-          {view === '3d' ? (
-            <Suspense fallback={<div className="canvas-loading">Loading 3D view…</div>}>
-              <Metaball3DPreview
-                doc={displayDoc}
-                meshRef={mesh3dRef}
-                canvasHandleRef={canvas3dHandleRef}
-                // Playback state is already capped at 30 fps. Rebuild immediately for each
-                // emitted state so a trailing debounce cannot be starved by the same cadence.
-                fieldDebounceMs={growing || activeMotion !== null ? 0 : undefined}
-                continuous={activeMotion !== null || doc.lookMode === 'liquid'}
+        <main
+          className="grid min-h-0 min-w-0 place-items-center overflow-hidden bg-muted/30 p-6 [container-type:size]"
+          style={{
+            background: view === '2d' && doc.rasterEnabled ? doc.theme.bg : undefined,
+          }}
+        >
+          {/* The mark always stays square and always fits the stage, on any
+              viewport: the stage is a size container, so the square is the
+              smaller of its two sides. */}
+          <div className="flex aspect-square w-[min(100cqw,100cqh,900px)]">
+            {view === '3d' ? (
+              <Suspense
+                fallback={
+                  <div className="flex size-full items-center justify-center gap-2 font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Loading 3D…
+                  </div>
+                }
+              >
+                <Metaball3DPreview
+                  doc={displayDoc}
+                  meshRef={mesh3dRef}
+                  canvasHandleRef={canvas3dHandleRef}
+                  // Playback state is already capped at 30 fps. Rebuild immediately for each
+                  // emitted state so a trailing debounce cannot be starved by the same cadence.
+                  fieldDebounceMs={growing || activeMotion !== null ? 0 : undefined}
+                  continuous={activeMotion !== null || doc.lookMode === 'liquid'}
+                />
+              </Suspense>
+            ) : (
+              <MetaballCanvas
+                ref={svgRef}
+                mode={doc.mode}
+                nodes={displayDoc.nodes}
+                edges={displayDoc.edges}
+                theme={doc.theme}
+                showGrid={doc.rasterEnabled}
+                fullGrid={doc.fullGrid}
+                gooStd={displayDoc.gooStd}
+                gooThreshold={doc.gooThreshold}
+                tubeFactor={displayDoc.tubeFactor}
+                inwardPull={displayDoc.inwardPull}
+                edgeFactors={displayDoc.edgeFactors}
+                edgePulls={displayDoc.edgePulls}
+                selected={selected}
+                selectedEdge={selectedEdge}
+                canonicalPath={canonical2dPath}
+                exportPreviewPath={exportPreviewPath}
+                onAddNode={addNode}
+                onSelect={selectNode}
+                onSelectEdge={selectEdge}
+                onToggleEdge={toggleEdge}
+                onRemoveNode={removeNode}
+                onMoveNode={moveNode}
               />
-            </Suspense>
-          ) : (
-            <MetaballCanvas
-              ref={svgRef}
-              mode={doc.mode}
-              nodes={displayDoc.nodes}
-              edges={displayDoc.edges}
-              theme={doc.theme}
-              showGrid={doc.rasterEnabled}
-              fullGrid={doc.fullGrid}
-              gooStd={displayDoc.gooStd}
-              gooThreshold={doc.gooThreshold}
-              tubeFactor={displayDoc.tubeFactor}
-              inwardPull={displayDoc.inwardPull}
-              edgeFactors={displayDoc.edgeFactors}
-              edgePulls={displayDoc.edgePulls}
-              selected={selected}
-              selectedEdge={selectedEdge}
-              canonicalPath={canonical2dPath}
-              exportPreviewPath={exportPreviewPath}
-              onAddNode={addNode}
-              onSelect={selectNode}
-              onSelectEdge={selectEdge}
-              onToggleEdge={toggleEdge}
-              onRemoveNode={removeNode}
-              onMoveNode={moveNode}
-            />
-          )}
-        </div>
-      </main>
-    </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+      <Toaster position="bottom-right" />
+    </>
   );
 }

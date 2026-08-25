@@ -9,6 +9,19 @@
     <meta name="theme-color" content="#f1efe8" />
     <meta name="description" content="NAMCHE Metaball Studio" />
     <title>NAMCHE — Metaball Studio</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('metaball-theme');
+          var isDark =
+            stored === 'dark' ||
+            (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', isDark);
+        } catch (error) {
+          // localStorage may be unavailable (e.g. privacy mode); default to light.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
