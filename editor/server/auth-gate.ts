@@ -9,24 +9,31 @@ import { AUTH_COOKIE, authConfiguration, getCookie, verifyAuthToken } from '../l
  * addition: the deploy contract's health check must never be redirected to
  * the login page.
  */
-const EXEMPT_PREFIXES = [
+const EXEMPT_PATHS = new Set([
   'api/auth',
   'api/logout',
   'api/health',
   'login',
+  'login.html',
   'impressum',
+  'impressum.html',
   'datenschutz',
+  'datenschutz.html',
   'legal.css',
   'theme.css',
-  'assets',
   'favicon.svg',
   'icons.svg',
-];
+]);
+
+/** Only real subtrees get prefix semantics; everything else matches exactly.
+ * A bare startsWith would make `/login/foo` or `/api/health-anything` public,
+ * and the SPA fallback would then serve the protected index.html for them. */
+const EXEMPT_SUBTREES = ['assets/'];
 
 export function isAuthExemptPath(pathname: string): boolean {
   if (pathname === '/') return false;
   const rest = pathname.startsWith('/') ? pathname.slice(1) : pathname;
-  return EXEMPT_PREFIXES.some((prefix) => rest.startsWith(prefix));
+  return EXEMPT_PATHS.has(rest) || EXEMPT_SUBTREES.some((prefix) => rest.startsWith(prefix));
 }
 
 export type AuthGateResult = 'next' | 'handled';

@@ -102,6 +102,17 @@ test('enabled auth mode redirects unauthenticated requests and exempts /login an
     const health = await fetch(`${base}/api/health`);
     assert.equal(health.status, 200);
 
+    // Exemptions match on path boundaries: a path that merely begins with an
+    // exempt name must still be gated, or the SPA fallback would serve the
+    // protected index.html for it.
+    const loginSubpath = await fetch(`${base}/login/foo`, { redirect: 'manual' });
+    assert.equal(loginSubpath.status, 302);
+    assert.equal(loginSubpath.headers.get('location'), '/login?from=%2Flogin%2Ffoo');
+    const healthAlias = await fetch(`${base}/api/health-anything`, { redirect: 'manual' });
+    assert.equal(healthAlias.status, 302);
+    const assetSubtree = await fetch(`${base}/assets/missing.css`, { redirect: 'manual' });
+    assert.equal(assetSubtree.status, 404);
+
     const token = await createAuthToken('server-test-secret');
     const authed = await fetch(`${base}/`, {
       headers: { cookie: `${AUTH_COOKIE}=${token}` },
