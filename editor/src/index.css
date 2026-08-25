@@ -4,6 +4,12 @@
 @import "@namche/design-tokens/tailwind";
 @import "@namche/design-tokens/shadcn";
 
+/* The shadcn components reach for `font-heading`; NAMCHE sets headlines in
+   Namche Shadow Sans, so alias it onto the display face. */
+@theme inline {
+  --font-heading: var(--font-display);
+}
+
 *,
 *::before,
 *::after {
@@ -19,8 +25,55 @@ body,
 
 body {
   font-family: var(--font-sans);
-  font-weight: 500;
-  color: var(--text);
+  color: var(--foreground);
+  background: var(--background);
   -webkit-font-smoothing: antialiased;
-  background: var(--panel);
+}
+
+/* ---- Legacy canvas contract ----------------------------------------------
+   The engine components (MetaballCanvas, Metaball3DPreview) and the export
+   pipeline depend on these class names and on the sizing they imply. They are
+   not part of the design system, so they stay hand-written here. */
+
+.metaball-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.metaball-svg .fertile-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fertile-pulse 1.1s var(--ease-standard) infinite alternate;
+}
+
+@keyframes fertile-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.72;
+  }
+}
+
+.metaball-3d-canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* react-three-fiber injects its own wrapper div around the WebGL canvas. */
+.metaball-3d-canvas > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metaball-svg .fertile-pulse {
+    animation: none;
+  }
 }

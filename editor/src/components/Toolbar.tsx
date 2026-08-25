@@ -1,7 +1,34 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
+
 import AppCredits from './AppCredits';
 import AIRenderPanel from './AIRenderPanel';
+import { Disclosure } from './toolbar/disclosure';
+import { ColorField, GroupLabel, Hint, SelectField, Subsection, SwitchField } from './toolbar/fields';
+import { PresetGrid, Segmented } from './toolbar/segmented';
+import { SliderField } from './toolbar/slider-field';
+import { TopBar } from './toolbar/top-bar';
 import type { AIRenderParams, AIRenderResult } from '../../lib/ai-render-contract';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   FLATTEN_EPSILON_MIN,
   FLATTEN_EPSILON_MAX,
@@ -159,129 +186,40 @@ type Props = {
 
 const SIZES: Size[] = ['S', 'M', 'L', 'XL'];
 const LOOP_MOTIONS = allLoopMotions();
+const NO_MOTION = 'none';
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="toolbar-section">
-      <h2>{title}</h2>
-      {children}
-    </section>
-  );
-}
+/** Every section key, so a section revealed by a view switch opens expanded. */
+const ALL_SECTIONS = [
+  'shape',
+  'motion',
+  'connection',
+  'node',
+  'appearance',
+  'material',
+  'advanced-3d',
+  'authoring',
+  'style',
+  'ai',
+  'export',
+  'reset',
+];
 
-function NumberSlider({
-  label,
+function Section({
   value,
-  min,
-  max,
-  step,
-  onChange,
-  onCommit,
-  disabled = false,
+  title,
+  children,
 }: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-  onCommit?: () => void;
-  disabled?: boolean;
-}) {
-  const clamp = (v: number) => Math.min(max, Math.max(min, v));
-  const decimals = step < 0.01 ? 3 : step < 1 ? 2 : 0;
-  const safe = Number.isFinite(value) ? value : min;
-  // Keep partially typed values (for example "4" on the way to "40") out of
-  // the clamping path until the edit is committed.
-  const [draft, setDraft] = useState<string | null>(null);
-  const draftRef = useRef<string | null>(null);
-
-  const updateDraft = (next: string | null) => {
-    draftRef.current = next;
-    setDraft(next);
-  };
-
-  const applyDraft = () => {
-    const pending = draftRef.current;
-    if (pending !== null) {
-      const next = Number(pending);
-      if (pending.trim() !== '' && !Number.isNaN(next)) onChange(clamp(next));
-      updateDraft(null);
-    }
-    onCommit?.();
-  };
-
-  return (
-    <div className="slider-row">
-      <span>{label}</span>
-      <input
-        type="range"
-        aria-label={label}
-        min={min}
-        max={max}
-        step={step}
-        value={safe}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        onPointerUp={onCommit}
-        onPointerCancel={onCommit}
-        onBlur={onCommit}
-        onKeyUp={(e) => {
-          if (
-            e.key === 'ArrowLeft' ||
-            e.key === 'ArrowRight' ||
-            e.key === 'ArrowUp' ||
-            e.key === 'ArrowDown' ||
-            e.key === 'PageUp' ||
-            e.key === 'PageDown' ||
-            e.key === 'Home' ||
-            e.key === 'End'
-          ) {
-            onCommit?.();
-          }
-        }}
-      />
-      <input
-        type="number"
-        aria-label={`${label} value`}
-        className="num"
-        min={min}
-        max={max}
-        step={step}
-        value={draft ?? Number(safe.toFixed(decimals))}
-        disabled={disabled}
-        onChange={(e) => updateDraft(e.target.value)}
-        onBlur={applyDraft}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') applyDraft();
-        }}
-      />
-    </div>
-  );
-}
-
-function ColorRow({
-  label,
-  value,
-  onChange,
-  onCommit,
-}: {
-  label: string;
   value: string;
-  onChange: (value: string) => void;
-  onCommit?: () => void;
+  title: string;
+  children: ReactNode;
 }) {
   return (
-    <label className="color-row">
-      <span>{label}</span>
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onPointerUp={onCommit}
-        onBlur={onCommit}
-      />
-    </label>
+    <AccordionItem value={value} className="border-b last:border-b-0">
+      <AccordionTrigger className="py-2.5 font-mono text-xs tracking-wider text-muted-foreground uppercase hover:text-foreground hover:no-underline">
+        {title}
+      </AccordionTrigger>
+      <AccordionContent className="flex flex-col gap-3 px-1 pb-3">{children}</AccordionContent>
+    </AccordionItem>
   );
 }
 
@@ -401,793 +339,721 @@ export default function Toolbar({
   breakNecks,
   onBreakNecksChange,
 }: Props) {
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const copyTimer = useRef<number | null>(null);
+  const [openSections, setOpenSections] = useState<string[]>(ALL_SECTIONS);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const handleCopy = async () => {
-    setCopyStatus((await onCopySvg()) ? 'copied' : 'failed');
-    if (copyTimer.current) window.clearTimeout(copyTimer.current);
-    copyTimer.current = window.setTimeout(() => setCopyStatus('idle'), 1500);
+    if (await onCopySvg()) toast.success('SVG copied to the clipboard.');
+    else toast.error('Could not copy the SVG.');
   };
 
+  const activeMotionHint = LOOP_MOTIONS.find((motion) => motion.id === activeMotion)?.hint;
+
   return (
-    <aside className="toolbar">
-      <header className="toolbar-header">
-        <div className="brand">
-          <img className="namche-mark" src="/namche-mark.svg" alt="" aria-hidden="true" />
-          <div className="namche-wordmark">
-            <strong>NAMCHE</strong>
-            <span>Metaball Studio</span>
-          </div>
-        </div>
+    <TooltipProvider>
+      <TopBar
+        view={view}
+        onViewChange={onViewChange}
+        mode={mode}
+        onModeChange={onModeChange}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={onUndo}
+        onRedo={onRedo}
+      />
 
-        <div className="toolbar-quickbar">
-          <button className="chip" disabled={!canUndo} onClick={onUndo}>
-            Undo
-          </button>
-          <button className="chip" disabled={!canRedo} onClick={onRedo}>
-            Redo
-          </button>
-          <div className="segmented" aria-label="View dimension">
-            <button className={view === '2d' ? 'active' : ''} onClick={() => onViewChange('2d')}>
-              2D
-            </button>
-            <button className={view === '3d' ? 'active' : ''} onClick={() => onViewChange('3d')}>
-              3D
-            </button>
-          </div>
-        </div>
-
-        {view === '2d' && (
-          <div className="toolbar-mode-control">
-            <div className="segmented" aria-label="2D canvas mode">
-              <button
-                className={mode === 'metaball' ? 'active' : ''}
-                onClick={() => onModeChange('metaball')}
-              >
-                Form
-              </button>
-              <button
-                className={mode === 'graph' ? 'active' : ''}
-                onClick={() => onModeChange('graph')}
-              >
-                Graph
-              </button>
-            </div>
-            <p>
-              {mode === 'metaball' ? 'Style and export the mark.' : 'Inspect and edit its network.'}
-            </p>
-          </div>
-        )}
-      </header>
-
-      <div className="toolbar-panels">
-        <Section title="Shape">
-          <div className="button-grid">
-            {PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                className={`chip${activePresetId === preset.id ? ' active' : ''}`}
-                onClick={() => onApplyPreset(preset.id)}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="Motion">
-          <label className="select-row">
-            <span>Loop</span>
-            <select
-              value={activeMotion ?? ''}
-              disabled={!canMotion && activeMotion === null}
-              onChange={(event) => {
-                const next = event.target.value as LoopMotionId | '';
-                if (next) onMotionToggle(next);
-                else if (activeMotion) onMotionToggle(activeMotion);
-              }}
+      <aside className="flex max-h-[50vh] min-h-0 shrink-0 flex-col border-b md:max-h-none md:w-[340px] md:border-r md:border-b-0">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="flex flex-col px-4 py-1">
+            <Accordion
+              multiple
+              value={openSections}
+              onValueChange={(next) => setOpenSections(next as string[])}
             >
-              <option value="">None</option>
-              {LOOP_MOTIONS.map((motion) => (
-                <option key={motion.id} value={motion.id}>
-                  {motion.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {activeMotion && (
-            <p className="hint tight">
-              {LOOP_MOTIONS.find((motion) => motion.id === activeMotion)?.hint}
-            </p>
-          )}
-          <div className="button-grid">
-            <button
-              className={`chip${growing ? ' active' : ''}`}
-              disabled={!canGrow && !growing}
-              onClick={onGrowToggle}
-            >
-              {growing ? 'Stop growth' : 'Grow once'}
-            </button>
-            <button
-              className="chip"
-              disabled={!activeMotion}
-              onClick={() => activeMotion && onMotionToggle(activeMotion)}
-            >
-              Stop loop
-            </button>
-          </div>
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={breakNecks}
-              disabled={!activeMotion}
-              onChange={(event) => onBreakNecksChange(event.target.checked)}
-            />
-            <span>Allow necks to break while moving</span>
-          </label>
-        </Section>
-
-        {view === '2d' && mode === 'graph' && (
-          <Section title="Selected connection">
-            {selectedEdge ? (
-              <button className="danger" onClick={onRemoveEdge}>
-                Remove connection
-              </button>
-            ) : (
-              <p className="hint tight">Click a connection between two nodes to select it.</p>
-            )}
-          </Section>
-        )}
-
-        {view === '2d' && selectedSize !== null && (
-          <Section title="Selected node">
-            <div className="segmented">
-              {SIZES.map((size) => (
-                <button
-                  key={size}
-                  disabled={selectedSize === null}
-                  className={selectedSize === size ? 'active' : ''}
-                  onClick={() => onSizeChange(size)}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-            {selectedRadius !== null && (
-              <div className="slider-group">
-                <NumberSlider
-                  label="Radius"
-                  value={selectedRadius}
-                  min={radiusMin}
-                  max={radiusMax}
-                  step={1}
-                  onChange={onRadiusChange}
-                  onCommit={onRadiusCommit}
+              <Section value="shape" title="Shape">
+                <PresetGrid
+                  label="Shape presets"
+                  value={activePresetId}
+                  onValueChange={onApplyPreset}
+                  options={PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
                 />
-                <p className="hint tight">
-                  {radiusOverridden
-                    ? 'Custom radius active. Size presets reset it.'
-                    : 'Using preset size radius.'}
-                </p>
-                <button className="chip" disabled={!radiusOverridden} onClick={onRadiusReset}>
-                  Use preset radius
-                </button>
-              </div>
-            )}
-            <button className="danger" disabled={selectedSize === null} onClick={onDeleteSelected}>
-              Delete node
-            </button>
-            <p className="hint tight">
-              Arrow keys nudge (1 px). Shift+arrow nudges 5 px. Alt/Shift+drag moves a node to
-              another cell.
-            </p>
-          </Section>
-        )}
+              </Section>
 
-        {view === '2d' && (
-          <Section title="Appearance">
-            <ColorRow
-              label="Mark"
-              value={theme.ink}
-              onChange={(v) => onThemeChange({ ...theme, ink: v })}
-              onCommit={onThemeCommit}
-            />
-            <div className="toolbar-subsection">
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={showGrid}
-                  onChange={(event) => onShowGridChange(event.target.checked)}
+              <Section value="motion" title="Motion">
+                <SelectField
+                  label="Loop"
+                  value={activeMotion ?? NO_MOTION}
+                  disabled={!canMotion && activeMotion === null}
+                  onValueChange={(next) => {
+                    if (next === NO_MOTION) {
+                      if (activeMotion) onMotionToggle(activeMotion);
+                      return;
+                    }
+                    onMotionToggle(next as LoopMotionId);
+                  }}
+                  options={[
+                    { value: NO_MOTION, label: 'None' },
+                    ...LOOP_MOTIONS.map((motion) => ({ value: motion.id, label: motion.label })),
+                  ]}
                 />
-                <span>Namche raster</span>
-              </label>
-              {showGrid && (
-                <div className="subsection-controls">
-                  <button
-                    className="chip"
-                    onClick={() => {
-                      const preset = THEME_PRESETS[0];
-                      if (!preset) return;
-                      onThemeChange({ ...preset.theme, ink: theme.ink });
-                      onThemeCommit();
-                    }}
+                {activeMotionHint && <Hint>{activeMotionHint}</Hint>}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGrow && !growing}
+                    onClick={onGrowToggle}
                   >
-                    Reset raster colors
-                  </button>
-                  <ColorRow
-                    label="Outer cells"
-                    value={theme.pink}
-                    onChange={(v) => onThemeChange({ ...theme, pink: v })}
-                    onCommit={onThemeCommit}
-                  />
-                  <ColorRow
-                    label="Inner cells"
-                    value={theme.blue}
-                    onChange={(v) => onThemeChange({ ...theme, blue: v })}
-                    onCommit={onThemeCommit}
-                  />
-                  <ColorRow
-                    label="Background"
-                    value={theme.bg}
-                    onChange={(v) => onThemeChange({ ...theme, bg: v })}
-                    onCommit={onThemeCommit}
-                  />
+                    {growing ? 'Stop growth' : 'Grow once'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!activeMotion}
+                    onClick={() => activeMotion && onMotionToggle(activeMotion)}
+                  >
+                    Stop loop
+                  </Button>
                 </div>
+                <SwitchField
+                  label="Allow necks to break while moving"
+                  checked={breakNecks}
+                  disabled={!activeMotion}
+                  onCheckedChange={onBreakNecksChange}
+                />
+              </Section>
+
+              {view === '2d' && mode === 'graph' && (
+                <Section value="connection" title="Selected connection">
+                  {selectedEdge ? (
+                    <Button variant="destructive" size="sm" className="w-full" onClick={onRemoveEdge}>
+                      Remove connection
+                    </Button>
+                  ) : (
+                    <Hint>Click a connection between two nodes to select it.</Hint>
+                  )}
+                </Section>
               )}
-            </div>
-          </Section>
-        )}
 
-        {view === '3d' && (
-          <Section title="Material">
-            <div className="segmented">
-              <button
-                className={lookMode === 'material' ? 'active' : ''}
-                onClick={() => onLookModeChange('material')}
-              >
-                Organic
-              </button>
-              <button
-                className={lookMode === 'liquid' ? 'active' : ''}
-                onClick={() => onLookModeChange('liquid')}
-              >
-                Liquid
-              </button>
-            </div>
+              {view === '2d' && selectedSize !== null && (
+                <Section value="node" title="Selected node">
+                  <Segmented
+                    label="Node size"
+                    value={selectedSize}
+                    onValueChange={onSizeChange}
+                    options={SIZES.map((size) => ({ value: size, label: size }))}
+                  />
+                  {selectedRadius !== null && (
+                    <>
+                      <SliderField
+                        label="Radius"
+                        value={selectedRadius}
+                        min={radiusMin}
+                        max={radiusMax}
+                        step={1}
+                        onChange={onRadiusChange}
+                        onCommit={onRadiusCommit}
+                      />
+                      <Hint>
+                        {radiusOverridden
+                          ? 'Custom radius active. Size presets reset it.'
+                          : 'Using preset size radius.'}
+                      </Hint>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={!radiusOverridden}
+                        onClick={onRadiusReset}
+                      >
+                        Use preset radius
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full"
+                    disabled={selectedSize === null}
+                    onClick={onDeleteSelected}
+                  >
+                    Delete node
+                  </Button>
+                  <Hint>
+                    Arrow keys nudge (1 px). Shift+arrow nudges 5 px. Alt/Shift+drag moves a node to
+                    another cell.
+                  </Hint>
+                </Section>
+              )}
 
-            {lookMode === 'material' && (
-              <>
-                <div className="button-grid">
-                  {MATERIAL_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      className={`chip${materialPreset === preset.id ? ' active' : ''}`}
-                      onClick={() => onMaterialPresetChange(preset.id)}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="hint tight">
-                  {MATERIAL_PRESETS.find((p) => p.id === materialPreset)?.hint ?? ''}
-                </p>
-              </>
-            )}
-
-            {lookMode === 'liquid' && (
-              <>
-                <div className="button-grid">
-                  {LIQUID_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      className={`chip${liquidPreset === preset.id ? ' active' : ''}`}
-                      onClick={() => onLiquidPresetChange(preset.id)}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="hint tight">
-                  {LIQUID_PRESETS.find((p) => p.id === liquidPreset)?.hint ?? ''}
-                </p>
-                <p className="hint tight">Environment</p>
-                <div className="button-grid">
-                  {LIQUID_BACKDROPS.map((backdrop) => (
-                    <button
-                      key={backdrop.id}
-                      className={`chip${liquidBackdrop === backdrop.id ? ' active' : ''}`}
-                      onClick={() => onLiquidBackdropChange(backdrop.id)}
-                      title={backdrop.hint}
-                    >
-                      {backdrop.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="hint tight">
-                  {LIQUID_BACKDROPS.find((b) => b.id === liquidBackdrop)?.hint ?? ''}
-                </p>
-                <details className="advanced-export">
-                  <summary>Fine tune liquid</summary>
-                  <div className="slider-group">
-                    <NumberSlider
-                      label="Transmission"
-                      value={liquidParams.transmission}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ transmission: v })}
-                      onCommit={onLiquidParamsCommit}
+              {view === '2d' && (
+                <Section value="appearance" title="Appearance">
+                  <ColorField
+                    label="Mark"
+                    value={theme.ink}
+                    onChange={(v) => onThemeChange({ ...theme, ink: v })}
+                    onCommit={onThemeCommit}
+                  />
+                  <Subsection>
+                    <SwitchField
+                      label="Namche raster"
+                      checked={showGrid}
+                      onCheckedChange={onShowGridChange}
                     />
-                    <p className="hint tight">
-                      How much environment light passes through the body.
-                    </p>
-                    <NumberSlider
-                      label="Glow"
-                      value={liquidParams.bloom}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ bloom: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <NumberSlider
-                      label="Caustics"
-                      value={liquidParams.causticStrength}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ causticStrength: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <p className="hint tight">Light dance and caustic intensity.</p>
-                    <div className="segmented tight">
-                      {(['calm', 'lively', 'wild'] as CausticDance[]).map((id) => (
-                        <button
-                          key={id}
-                          type="button"
-                          className={liquidParams.causticDance === id ? 'active' : ''}
+                    {showGrid && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
                           onClick={() => {
+                            const preset = THEME_PRESETS[0];
+                            if (!preset) return;
+                            onThemeChange({ ...preset.theme, ink: theme.ink });
+                            onThemeCommit();
+                          }}
+                        >
+                          Reset raster colors
+                        </Button>
+                        <ColorField
+                          label="Outer cells"
+                          value={theme.pink}
+                          onChange={(v) => onThemeChange({ ...theme, pink: v })}
+                          onCommit={onThemeCommit}
+                        />
+                        <ColorField
+                          label="Inner cells"
+                          value={theme.blue}
+                          onChange={(v) => onThemeChange({ ...theme, blue: v })}
+                          onCommit={onThemeCommit}
+                        />
+                        <ColorField
+                          label="Background"
+                          value={theme.bg}
+                          onChange={(v) => onThemeChange({ ...theme, bg: v })}
+                          onCommit={onThemeCommit}
+                        />
+                      </>
+                    )}
+                  </Subsection>
+                </Section>
+              )}
+
+              {view === '3d' && (
+                <Section value="material" title="Material">
+                  <Segmented
+                    label="Look mode"
+                    value={lookMode}
+                    onValueChange={onLookModeChange}
+                    options={[
+                      { value: 'material', label: 'Organic' },
+                      { value: 'liquid', label: 'Liquid' },
+                    ]}
+                  />
+
+                  {lookMode === 'material' && (
+                    <>
+                      <PresetGrid
+                        label="Material presets"
+                        value={materialPreset}
+                        onValueChange={onMaterialPresetChange}
+                        options={MATERIAL_PRESETS.map((preset) => ({
+                          value: preset.id,
+                          label: preset.label,
+                        }))}
+                      />
+                      <Hint>
+                        {MATERIAL_PRESETS.find((p) => p.id === materialPreset)?.hint ?? ''}
+                      </Hint>
+                    </>
+                  )}
+
+                  {lookMode === 'liquid' && (
+                    <>
+                      <PresetGrid
+                        label="Liquid presets"
+                        value={liquidPreset}
+                        onValueChange={onLiquidPresetChange}
+                        options={LIQUID_PRESETS.map((preset) => ({
+                          value: preset.id,
+                          label: preset.label,
+                        }))}
+                      />
+                      <Hint>{LIQUID_PRESETS.find((p) => p.id === liquidPreset)?.hint ?? ''}</Hint>
+                      <GroupLabel>Environment</GroupLabel>
+                      <PresetGrid
+                        label="Environment"
+                        value={liquidBackdrop}
+                        onValueChange={onLiquidBackdropChange}
+                        options={LIQUID_BACKDROPS.map((backdrop) => ({
+                          value: backdrop.id,
+                          label: backdrop.label,
+                          hint: backdrop.hint,
+                        }))}
+                      />
+                      <Hint>
+                        {LIQUID_BACKDROPS.find((b) => b.id === liquidBackdrop)?.hint ?? ''}
+                      </Hint>
+                      <Disclosure label="Fine tune liquid">
+                        <SliderField
+                          label="Transmission"
+                          value={liquidParams.transmission}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ transmission: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <Hint>How much environment light passes through the body.</Hint>
+                        <SliderField
+                          label="Glow"
+                          value={liquidParams.bloom}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ bloom: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <SliderField
+                          label="Caustics"
+                          value={liquidParams.causticStrength}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ causticStrength: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <Hint>Light dance and caustic intensity.</Hint>
+                        <Segmented
+                          label="Caustic dance"
+                          value={liquidParams.causticDance}
+                          onValueChange={(id: CausticDance) => {
                             onLiquidParamsChange({ causticDance: id });
                             onLiquidParamsCommit();
                           }}
-                        >
-                          {id === 'calm' ? 'Calm' : id === 'lively' ? 'Lively' : 'Wild'}
-                        </button>
-                      ))}
-                    </div>
-                    <NumberSlider
-                      label="Waves"
-                      value={liquidParams.waveStrength}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ waveStrength: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <p className="hint tight">Surface distortion and wobble.</p>
-                    <NumberSlider
-                      label="Rim"
-                      value={liquidParams.rimStrength}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ rimStrength: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <NumberSlider
-                      label="Roughness"
-                      value={liquidParams.roughness}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ roughness: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <NumberSlider
-                      label="IOR"
-                      value={liquidParams.ior}
-                      min={LIQUID_IOR_MIN}
-                      max={LIQUID_IOR_MAX}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ ior: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <NumberSlider
-                      label="Dispersion"
-                      value={liquidParams.dispersion}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ dispersion: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <NumberSlider
-                      label="Opacity"
-                      value={liquidParams.opacity}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(v) => onLiquidParamsChange({ opacity: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <p className="hint tight">Residual body density, independent of tint.</p>
-                    <ColorRow
-                      label="Tint"
-                      value={liquidParams.tint}
-                      onChange={(v) => onLiquidParamsChange({ tint: v })}
-                      onCommit={onLiquidParamsCommit}
-                    />
-                    <p className="hint tight">A light color wash rather than an opaque gel.</p>
-                  </div>
-                </details>
-              </>
-            )}
-          </Section>
-        )}
+                          options={[
+                            { value: 'calm', label: 'Calm' },
+                            { value: 'lively', label: 'Lively' },
+                            { value: 'wild', label: 'Wild' },
+                          ]}
+                        />
+                        <SliderField
+                          label="Waves"
+                          value={liquidParams.waveStrength}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ waveStrength: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <Hint>Surface distortion and wobble.</Hint>
+                        <SliderField
+                          label="Rim"
+                          value={liquidParams.rimStrength}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ rimStrength: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <SliderField
+                          label="Roughness"
+                          value={liquidParams.roughness}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ roughness: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <SliderField
+                          label="IOR"
+                          value={liquidParams.ior}
+                          min={LIQUID_IOR_MIN}
+                          max={LIQUID_IOR_MAX}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ ior: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <SliderField
+                          label="Dispersion"
+                          value={liquidParams.dispersion}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ dispersion: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <SliderField
+                          label="Opacity"
+                          value={liquidParams.opacity}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onChange={(v) => onLiquidParamsChange({ opacity: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <Hint>Residual body density, independent of tint.</Hint>
+                        <ColorField
+                          label="Tint"
+                          value={liquidParams.tint}
+                          onChange={(v) => onLiquidParamsChange({ tint: v })}
+                          onCommit={onLiquidParamsCommit}
+                        />
+                        <Hint>A light color wash rather than an opaque gel.</Hint>
+                      </Disclosure>
+                    </>
+                  )}
+                </Section>
+              )}
 
-        {view === '3d' && (
-          <Section title="Advanced 3D">
-            <details className="advanced-export">
-              <summary>Surface sampling</summary>
-              <div className="subsection-controls">
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={surfaceSamplerEnabled}
-                    onChange={(e) => onSurfaceSamplerEnabledChange(e.target.checked)}
-                  />
-                  <span>Enable sampler</span>
-                </label>
-                <div className="segmented">
-                  {(
-                    [
-                      ['points', 'Points'],
-                      ['spheres', 'Spheres'],
-                      ['both', 'Both'],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <button
-                      key={id}
-                      className={surfaceSamplerMode === id ? 'active' : ''}
+              {view === '3d' && (
+                <Section value="advanced-3d" title="Advanced 3D">
+                  <Disclosure label="Surface sampling">
+                    <SwitchField
+                      label="Enable sampler"
+                      checked={surfaceSamplerEnabled}
+                      onCheckedChange={onSurfaceSamplerEnabledChange}
+                    />
+                    <Segmented
+                      label="Sampler mode"
+                      value={surfaceSamplerMode}
                       disabled={!surfaceSamplerEnabled}
-                      onClick={() => onSurfaceSamplerModeChange(id)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="slider-group">
-                  <NumberSlider
-                    label="Count"
-                    value={surfaceSamplerCount}
-                    min={SURFACE_SAMPLER_COUNT_MIN}
-                    max={SURFACE_SAMPLER_COUNT_MAX}
-                    step={100}
-                    disabled={!surfaceSamplerEnabled}
-                    onChange={onSurfaceSamplerCountChange}
-                    onCommit={onSurfaceSamplerCountCommit}
-                  />
-                  <NumberSlider
-                    label="Point size"
-                    value={surfaceSamplerPointSize}
-                    min={SURFACE_SAMPLER_POINT_SIZE_MIN}
-                    max={SURFACE_SAMPLER_POINT_SIZE_MAX}
-                    step={0.001}
-                    disabled={!surfaceSamplerEnabled || surfaceSamplerMode === 'spheres'}
-                    onChange={onSurfaceSamplerPointSizeChange}
-                    onCommit={onSurfaceSamplerPointSizeCommit}
-                  />
-                  <NumberSlider
-                    label="Sphere size"
-                    value={surfaceSamplerSphereSize}
-                    min={SURFACE_SAMPLER_SPHERE_SIZE_MIN}
-                    max={SURFACE_SAMPLER_SPHERE_SIZE_MAX}
-                    step={0.001}
-                    disabled={!surfaceSamplerEnabled || surfaceSamplerMode === 'points'}
-                    onChange={onSurfaceSamplerSphereSizeChange}
-                    onCommit={onSurfaceSamplerSphereSizeCommit}
-                  />
-                </div>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={surfaceSamplerShowMesh}
-                    disabled={!surfaceSamplerEnabled}
-                    onChange={(e) => onSurfaceSamplerShowMeshChange(e.target.checked)}
-                  />
-                  <span>Show mesh</span>
-                </label>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={surfaceSamplerAnimate}
-                    disabled={!surfaceSamplerEnabled}
-                    onChange={(e) => onSurfaceSamplerAnimateChange(e.target.checked)}
-                  />
-                  <span>Animate reveal</span>
-                </label>
-                <p className="hint tight">
-                  {surfaceSamplerEnabled
-                    ? 'Pink points / spheres bloom onto the whole isosurface.'
-                    : 'Enable to scatter pink samples on the 3D mark.'}
-                </p>
-              </div>
-            </details>
-          </Section>
-        )}
+                      onValueChange={onSurfaceSamplerModeChange}
+                      options={[
+                        { value: 'points', label: 'Points' },
+                        { value: 'spheres', label: 'Spheres' },
+                        { value: 'both', label: 'Both' },
+                      ]}
+                    />
+                    <SliderField
+                      label="Count"
+                      value={surfaceSamplerCount}
+                      min={SURFACE_SAMPLER_COUNT_MIN}
+                      max={SURFACE_SAMPLER_COUNT_MAX}
+                      step={100}
+                      disabled={!surfaceSamplerEnabled}
+                      onChange={onSurfaceSamplerCountChange}
+                      onCommit={onSurfaceSamplerCountCommit}
+                    />
+                    <SliderField
+                      label="Point size"
+                      value={surfaceSamplerPointSize}
+                      min={SURFACE_SAMPLER_POINT_SIZE_MIN}
+                      max={SURFACE_SAMPLER_POINT_SIZE_MAX}
+                      step={0.001}
+                      disabled={!surfaceSamplerEnabled || surfaceSamplerMode === 'spheres'}
+                      onChange={onSurfaceSamplerPointSizeChange}
+                      onCommit={onSurfaceSamplerPointSizeCommit}
+                    />
+                    <SliderField
+                      label="Sphere size"
+                      value={surfaceSamplerSphereSize}
+                      min={SURFACE_SAMPLER_SPHERE_SIZE_MIN}
+                      max={SURFACE_SAMPLER_SPHERE_SIZE_MAX}
+                      step={0.001}
+                      disabled={!surfaceSamplerEnabled || surfaceSamplerMode === 'points'}
+                      onChange={onSurfaceSamplerSphereSizeChange}
+                      onCommit={onSurfaceSamplerSphereSizeCommit}
+                    />
+                    <SwitchField
+                      label="Show mesh"
+                      checked={surfaceSamplerShowMesh}
+                      disabled={!surfaceSamplerEnabled}
+                      onCheckedChange={onSurfaceSamplerShowMeshChange}
+                    />
+                    <SwitchField
+                      label="Animate reveal"
+                      checked={surfaceSamplerAnimate}
+                      disabled={!surfaceSamplerEnabled}
+                      onCheckedChange={onSurfaceSamplerAnimateChange}
+                    />
+                    <Hint>
+                      {surfaceSamplerEnabled
+                        ? 'Pink points / spheres bloom onto the whole isosurface.'
+                        : 'Enable to scatter pink samples on the 3D mark.'}
+                    </Hint>
+                  </Disclosure>
+                </Section>
+              )}
 
-        {view === '2d' && (
-          <Section title="Authoring">
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={fullGrid}
-                onChange={(e) => onFullGridChange(e.target.checked)}
-              />
-              <span>Allow nodes in outer cells</span>
-            </label>
-          </Section>
-        )}
+              {view === '2d' && (
+                <Section value="authoring" title="Authoring">
+                  <SwitchField
+                    label="Allow nodes in outer cells"
+                    checked={fullGrid}
+                    onCheckedChange={onFullGridChange}
+                  />
+                </Section>
+              )}
 
-        {(mode === 'metaball' || view === '3d') && (
-          <Section title="Style">
-            <div className="slider-group">
-              <NumberSlider
-                label="Neck width"
-                value={tubeFactor}
-                min={TUBE_FACTOR_MIN}
-                max={TUBE_FACTOR_MAX}
-                step={0.01}
-                onChange={onTubeFactorChange}
-                onCommit={onTubeFactorCommit}
-              />
-              <p className="hint tight">Capsule thickness before blur.</p>
-              <NumberSlider
-                label="Blur"
-                value={gooStd}
-                min={GOO_STD_MIN}
-                max={GOO_STD_MAX}
-                step={0.5}
-                onChange={onGooStdChange}
-                onCommit={onGooStdCommit}
-              />
-              <p className="hint tight">Spread of the merge — softer, wider joins.</p>
-              <NumberSlider
-                label="Contrast"
-                value={gooThreshold}
-                min={GOO_THRESHOLD_MIN}
-                max={GOO_THRESHOLD_MAX}
-                step={0.5}
-                onChange={onGooThresholdChange}
-                onCommit={onGooThresholdCommit}
-              />
-              <p className="hint tight">Alpha cutoff — higher = sharper waist, tighter neck.</p>
-              <NumberSlider
-                label="Pinch / merge"
-                value={inwardPull}
-                min={INWARD_PULL_MIN}
-                max={INWARD_PULL_MAX}
-                step={0.01}
-                onChange={onInwardPullChange}
-                onCommit={onInwardPullCommit}
-              />
-              <p className="hint tight">
-                Barbell tubes at 0 → pinched metaball at 1. Also boosts effective blur as tubes
-                fade.
-              </p>
-            </div>
+              {(mode === 'metaball' || view === '3d') && (
+                <Section value="style" title="Style">
+                  <SliderField
+                    label="Neck width"
+                    value={tubeFactor}
+                    min={TUBE_FACTOR_MIN}
+                    max={TUBE_FACTOR_MAX}
+                    step={0.01}
+                    onChange={onTubeFactorChange}
+                    onCommit={onTubeFactorCommit}
+                  />
+                  <Hint>Capsule thickness before blur.</Hint>
+                  <SliderField
+                    label="Blur"
+                    value={gooStd}
+                    min={GOO_STD_MIN}
+                    max={GOO_STD_MAX}
+                    step={0.5}
+                    onChange={onGooStdChange}
+                    onCommit={onGooStdCommit}
+                  />
+                  <Hint>Spread of the merge — softer, wider joins.</Hint>
+                  <SliderField
+                    label="Contrast"
+                    value={gooThreshold}
+                    min={GOO_THRESHOLD_MIN}
+                    max={GOO_THRESHOLD_MAX}
+                    step={0.5}
+                    onChange={onGooThresholdChange}
+                    onCommit={onGooThresholdCommit}
+                  />
+                  <Hint>Alpha cutoff — higher = sharper waist, tighter neck.</Hint>
+                  <SliderField
+                    label="Pinch / merge"
+                    value={inwardPull}
+                    min={INWARD_PULL_MIN}
+                    max={INWARD_PULL_MAX}
+                    step={0.01}
+                    onChange={onInwardPullChange}
+                    onCommit={onInwardPullCommit}
+                  />
+                  <Hint>
+                    Barbell tubes at 0 → pinched metaball at 1. Also boosts effective blur as tubes
+                    fade.
+                  </Hint>
 
-            {view === '2d' && (
-              <div className="style-connection">
-                {selectedEdge && edgeFactor !== null && edgePull !== null ? (
+                  {view === '2d' && (
+                    <Subsection>
+                      {selectedEdge && edgeFactor !== null && edgePull !== null ? (
+                        <>
+                          <SwitchField
+                            label="Customize selected connection"
+                            checked={edgeFactorOverridden || edgePullOverridden}
+                            onCheckedChange={(next) => {
+                              if (next) onEnableEdgeStyle();
+                              else onDisableEdgeStyle();
+                            }}
+                          />
+                          {edgeFactorOverridden || edgePullOverridden ? (
+                            <>
+                              <SliderField
+                                label="Neck width"
+                                value={edgeFactor}
+                                min={TUBE_FACTOR_MIN}
+                                max={TUBE_FACTOR_MAX}
+                                step={0.01}
+                                onChange={onEdgeFactorChange}
+                                onCommit={onEdgeFactorCommit}
+                              />
+                              <Hint>Capsule thickness for this connection before blur.</Hint>
+                              <SliderField
+                                label="Pinch"
+                                value={edgePull}
+                                min={INWARD_PULL_MIN}
+                                max={INWARD_PULL_MAX}
+                                step={0.01}
+                                onChange={onEdgePullChange}
+                                onCommit={onEdgePullCommit}
+                              />
+                              <Hint>
+                                How much tube remains on this join — 0 keeps a barbell, 1 fades the
+                                tube.
+                              </Hint>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!edgeFactorOverridden}
+                                  onClick={onEdgeFactorReset}
+                                >
+                                  Reset neck
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!edgePullOverridden}
+                                  onClick={onEdgePullReset}
+                                >
+                                  Reset pinch
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="col-span-2"
+                                  onClick={onRemoveEdge}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <Hint>
+                              Turn on to override global Neck and Pinch for this join only. Blur and
+                              Contrast stay global.
+                            </Hint>
+                          )}
+                        </>
+                      ) : (
+                        <Hint>
+                          Select a connection on the canvas to customize its neck and pinch.
+                        </Hint>
+                      )}
+                    </Subsection>
+                  )}
+                </Section>
+              )}
+
+              {view === '3d' && (
+                <Section value="ai" title="AI material render">
+                  <AIRenderPanel
+                    canRender={canAIRender}
+                    referenceName={refImageName}
+                    onAttachReference={onAttachRefImageClick}
+                    onClearReference={onClearRefImage}
+                    onRender={onAIRender}
+                  />
+                </Section>
+              )}
+
+              <Section value="export" title="Export">
+                {view === '2d' && mode === 'metaball' && (
                   <>
-                    <label className="check-row">
-                      <input
-                        type="checkbox"
-                        checked={edgeFactorOverridden || edgePullOverridden}
-                        onChange={(e) => {
-                          if (e.target.checked) onEnableEdgeStyle();
-                          else onDisableEdgeStyle();
-                        }}
-                      />
-                      <span>Customize selected connection</span>
-                    </label>
-                    {(edgeFactorOverridden || edgePullOverridden) && (
-                      <div className="slider-group">
-                        <NumberSlider
-                          label="Neck width"
-                          value={edgeFactor}
-                          min={TUBE_FACTOR_MIN}
-                          max={TUBE_FACTOR_MAX}
-                          step={0.01}
-                          onChange={onEdgeFactorChange}
-                          onCommit={onEdgeFactorCommit}
-                        />
-                        <p className="hint tight">
-                          Capsule thickness for this connection before blur.
-                        </p>
-                        <NumberSlider
-                          label="Pinch"
-                          value={edgePull}
-                          min={INWARD_PULL_MIN}
-                          max={INWARD_PULL_MAX}
-                          step={0.01}
-                          onChange={onEdgePullChange}
-                          onCommit={onEdgePullCommit}
-                        />
-                        <p className="hint tight">
-                          How much tube remains on this join — 0 keeps a barbell, 1 fades the tube.
-                        </p>
-                        <div className="button-grid">
-                          <button
-                            className="chip"
-                            disabled={!edgeFactorOverridden}
-                            onClick={onEdgeFactorReset}
-                          >
-                            Reset neck
-                          </button>
-                          <button
-                            className="chip"
-                            disabled={!edgePullOverridden}
-                            onClick={onEdgePullReset}
-                          >
-                            Reset pinch
-                          </button>
-                          <button className="danger" onClick={onRemoveEdge}>
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {!(edgeFactorOverridden || edgePullOverridden) && (
-                      <p className="hint tight">
-                        Turn on to override global Neck and Pinch for this join only. Blur and
-                        Contrast stay global.
-                      </p>
-                    )}
+                    <SwitchField
+                      label="Mark only (transparent)"
+                      checked={markOnly}
+                      onCheckedChange={onMarkOnlyChange}
+                    />
+                    <SelectField
+                      label="PNG scale"
+                      value={String(pngScale)}
+                      onValueChange={(next) => onPngScaleChange(Number(next) as PngScale)}
+                      options={PNG_SCALES.map((scale) => ({
+                        value: String(scale),
+                        label: `${scale}×`,
+                      }))}
+                    />
                   </>
-                ) : (
-                  <p className="hint tight">
-                    Select a connection on the canvas to customize its neck and pinch.
-                  </p>
                 )}
-              </div>
-            )}
-          </Section>
-        )}
+                <div className="grid grid-cols-2 gap-2">
+                  {view === '2d' && mode === 'metaball' && (
+                    <>
+                      <Button size="sm" onClick={onExportSvg}>
+                        Export SVG
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={onExportPng}>
+                        Export PNG
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => void handleCopy()}>
+                        Copy SVG
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="outline" size="sm" onClick={onExportJson}>
+                    Export JSON
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={onImportJsonClick}>
+                    Import JSON
+                  </Button>
+                  {view === '3d' && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={onExportGlb}>
+                        Export GLB
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={onExportBlenderHandoff}>
+                        Export for Blender
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {view === '2d' && mode === 'graph' && (
+                  <Hint>
+                    Switch to Form to export SVG or PNG. JSON remains available for editable graph
+                    data.
+                  </Hint>
+                )}
+                {view === '3d' && (
+                  <Hint>
+                    Export GLB = mesh only. Export for Blender = zip (mesh + preview + universal
+                    prompt) for Blender MCP. The material reference above is reused for that
+                    handoff.
+                  </Hint>
+                )}
+                {view === '2d' && mode === 'metaball' && (
+                  <Disclosure label="Advanced export">
+                    <SwitchField
+                      label="Show export preview overlay"
+                      checked={showExportPreview}
+                      onCheckedChange={onShowExportPreviewChange}
+                    />
+                    <SliderField
+                      label="Flatten detail"
+                      value={flattenEpsilon}
+                      min={FLATTEN_EPSILON_MIN}
+                      max={FLATTEN_EPSILON_MAX}
+                      step={0.1}
+                      onChange={onFlattenEpsilonChange}
+                      onCommit={onFlattenEpsilonCommit}
+                    />
+                    <SliderField
+                      label="Flatten res."
+                      value={flattenResolution}
+                      min={FLATTEN_RESOLUTION_MIN}
+                      max={FLATTEN_RESOLUTION_MAX}
+                      step={1}
+                      onChange={onFlattenResolutionChange}
+                      onCommit={onFlattenResolutionCommit}
+                    />
+                  </Disclosure>
+                )}
+              </Section>
 
-        {view === '3d' && (
-          <Section title="AI material render">
-            <AIRenderPanel
-              canRender={canAIRender}
-              referenceName={refImageName}
-              onAttachReference={onAttachRefImageClick}
-              onClearReference={onClearRefImage}
-              onRender={onAIRender}
-            />
-          </Section>
-        )}
+              <Section value="reset" title="Reset">
+                <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+                  <AlertDialogTrigger
+                    render={
+                      <Button variant="destructive" size="sm" className="w-full">
+                        Clear canvas
+                      </Button>
+                    }
+                  />
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes every node. You can undo.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        variant="destructive"
+                        onClick={() => {
+                          onClear();
+                          setConfirmClear(false);
+                        }}
+                      >
+                        Clear canvas
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </Section>
+            </Accordion>
 
-        <Section title="Export">
-          {view === '2d' && mode === 'metaball' && (
-            <>
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={markOnly}
-                  onChange={(e) => onMarkOnlyChange(e.target.checked)}
-                />
-                <span>Mark only (transparent)</span>
-              </label>
-              <label className="select-row">
-                <span>PNG scale</span>
-                <select
-                  value={pngScale}
-                  onChange={(e) => onPngScaleChange(Number(e.target.value) as PngScale)}
-                >
-                  {PNG_SCALES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}×
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-          <div className="button-grid">
-            {view === '2d' && mode === 'metaball' && (
-              <>
-                <button className="chip" onClick={onExportSvg}>
-                  Export SVG
-                </button>
-                <button className="chip" onClick={onExportPng}>
-                  Export PNG
-                </button>
-                <button
-                  className={`chip${copyStatus === 'copied' ? ' is-copied' : ''}`}
-                  onClick={() => void handleCopy()}
-                  aria-live="polite"
-                >
-                  {copyStatus === 'copied'
-                    ? 'Copied!'
-                    : copyStatus === 'failed'
-                      ? 'Copy failed'
-                      : 'Copy SVG'}
-                </button>
-              </>
-            )}
-            <button className="chip" onClick={onExportJson}>
-              Export JSON
-            </button>
-            <button className="chip" onClick={onImportJsonClick}>
-              Import JSON
-            </button>
-            {view === '3d' && (
-              <>
-                <button className="chip" onClick={onExportGlb}>
-                  Export GLB
-                </button>
-                <button className="chip" onClick={onExportBlenderHandoff}>
-                  Export for Blender
-                </button>
-              </>
-            )}
+            <AppCredits />
           </div>
-          {view === '2d' && mode === 'graph' && (
-            <p className="hint tight">
-              Switch to Form to export SVG or PNG. JSON remains available for editable graph data.
-            </p>
-          )}
-          {view === '3d' && (
-            <p className="hint tight">
-              Export GLB = mesh only. Export for Blender = zip (mesh + preview + universal prompt)
-              for Blender MCP. The material reference above is reused for that handoff.
-            </p>
-          )}
-          {view === '2d' && mode === 'metaball' && (
-            <details className="advanced-export">
-              <summary>Advanced export</summary>
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={showExportPreview}
-                  onChange={(e) => onShowExportPreviewChange(e.target.checked)}
-                />
-                <span>Show export preview overlay</span>
-              </label>
-              <div className="slider-group">
-                <NumberSlider
-                  label="Flatten detail"
-                  value={flattenEpsilon}
-                  min={FLATTEN_EPSILON_MIN}
-                  max={FLATTEN_EPSILON_MAX}
-                  step={0.1}
-                  onChange={onFlattenEpsilonChange}
-                  onCommit={onFlattenEpsilonCommit}
-                />
-                <NumberSlider
-                  label="Flatten res."
-                  value={flattenResolution}
-                  min={FLATTEN_RESOLUTION_MIN}
-                  max={FLATTEN_RESOLUTION_MAX}
-                  step={1}
-                  onChange={onFlattenResolutionChange}
-                  onCommit={onFlattenResolutionCommit}
-                />
-              </div>
-            </details>
-          )}
-        </Section>
-
-        <Section title="Reset">
-          <button className="danger" onClick={onClear}>
-            Clear canvas
-          </button>
-        </Section>
-
-        <AppCredits />
-      </div>
-    </aside>
+        </ScrollArea>
+      </aside>
+    </TooltipProvider>
   );
 }
