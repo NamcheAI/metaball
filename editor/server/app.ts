@@ -1,14 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import renderHandler from '../api/render.js';
+import { handleRenderRequest } from './render.js';
 import {
   createRenderRateLimiter,
   renderRateLimitBudget,
   renderRateLimitKey,
+  renderRateLimitTrustProxy,
 } from './render-rate-limit.js';
+import { readRequestBody } from './request-body.js';
 import { serveStatic } from './static.js';
-import { readRequestBody, toVercelRequest, toVercelResponse } from './vercel-adapter.js';
 
 // Compiled to dist-server/server/app.js; editor/dist/ (the Vite build) is a
 // sibling of dist-server/ one level up from there.
@@ -26,16 +27,16 @@ export type AppOptions = { distDir?: string };
 export type RequestListener = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
 /**
- * Builds the self-hosted server's request pipeline: the health check first,
- * then the render API route (a thin adapter over the unmodified
- * `api/render.ts` Vercel handler), then the static file server as the
- * catch-all.
+ * Builds the server's request pipeline: the health check first, then the
+ * render API route (rate limited per client, then handled by
+ * `render.ts`), then the static file server as the catch-all.
  */
 export function createRequestListener(options: AppOptions = {}): RequestListener {
   const distDir = options.distDir ?? DEFAULT_DIST_DIR;
   // Spending guard, not authentication: the editor is public, but a render
   // is a paid provider call whenever OPENAI_API_KEY is configured.
   const renderLimiter = createRenderRateLimiter(renderRateLimitBudget());
+  const trustProxy = renderRateLimitTrustProxy();
 
   return async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -66,17 +67,17 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
       }
 
       // Method validation (POST-only for render) lives in the handler
-      // itself, exactly as it does on Vercel -- routing here only matches
-      // the path so that behavior isn't duplicated.
+      // itself -- routing here only matches the path so that behavior
+      // isn't duplicated.
       if (pathname === '/api/render') {
-        const verdict = renderLimiter.take(renderRateLimitKey(req));
+        const verdict = renderLimiter.take(renderRateLimitKey(req, trustProxy));
         if (!verdict.allowed) {
           res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
           sendJson(res, 429, { error: 'Render rate limit reached. Try again later.' });
           return;
         }
         const body = await readRequestBody(req);
-        await renderHandler(toVercelRequest(req, body), toVercelResponse(res));
+        await handleRenderRequest(res, req.method, body);
         return;
       }
 

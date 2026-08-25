@@ -35,32 +35,18 @@ npm run preview  # preview the production build
 Metaball Studio has no authentication. There is no login, no PIN, no gate in
 front of any route. Anyone who can reach a deployment can open it and use it.
 (Jodok, 2026-08-25: the editor deploys as a public container at
-metaball.namche.ai; an earlier Vercel PIN gate has been removed entirely.)
+metaball.namche.ai; an earlier Vercel PIN gate and the Vercel deployment path
+itself have both been removed entirely — the self-hosted container is now the
+only way this editor ships.)
 
 > **`/api/render` spends real money.** It calls a paid OpenAI image endpoint
 > on every request, and since the editor is public, anyone who can reach a
-> deployment can trigger it. The self-hosted server caps this at
-> `RENDER_MAX_PER_HOUR` renders per client IP per hour (default 10, `0`
-> disables the guard) — a spending brake, not authentication. The Vercel
-> deployment has **no** such guard (serverless instances cannot share the
-> window): do not set `OPENAI_API_KEY` there without adding protection in
-> front. See [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
-
-### Deploy to Vercel
-
-1. From the `metaball-editor` folder, initialize git (if needed), commit, and
-   push to GitHub/GitLab/Bitbucket.
-2. [New Project](https://vercel.com/new) → import the repo.
-3. **Root directory:** `metaball-editor` (if the repo root is the parent folder).
-4. Framework preset should detect **Vite** automatically.
-5. Optionally set `OPENAI_API_KEY` (and `OPENAI_IMAGE_MODEL`) in Project →
-   Settings → Environment Variables for AI material renders -- see the
-   warning above first.
-6. Deploy from the Vercel dashboard or locally:
-
-   ```bash
-   npx vercel --prod
-   ```
+> deployment can trigger it. The server caps this at `RENDER_MAX_PER_HOUR`
+> renders per client IP per hour (default 10, `0` disables the guard) — a
+> spending brake, not authentication. The limiter keys on the raw socket
+> address unless `TRUST_PROXY=1` declares a trusted reverse proxy in front
+> (see the environment variables below). See
+> [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
 
 ### Local development
 
@@ -68,17 +54,26 @@ metaball.namche.ai; an earlier Vercel PIN gate has been removed entirely.)
 npm run dev
 ```
 
-Copy `.env.example` to `.env.local` and add `OPENAI_API_KEY` to test AI
-material renders locally; see [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
+Copy `.env.example` to `.env.local` and add `OPENAI_API_KEY` to try AI
+material renders while iterating on the UI — the Vite dev server has its own
+lightweight `/api/render` route for this. It does not run the rate limiter,
+health check, or static file server: to exercise the actual self-hosted
+server (the one described below), build it and run it directly:
+
+```bash
+npm run build                            # from the repo root
+npm run serve -w metaball-editor         # node dist-server/server/index.js
+```
+
+See [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md) for the render
+pipeline and code boundaries.
 
 ## Self-hosted container
 
-For metaball.namche.ai the editor also ships as a plain Docker image, built
-from the repo-root `Dockerfile`, with a small Node server at
-[`server/`](server) standing in for Vercel's static hosting and serverless
-functions. It serves the same `dist/` build and reuses the same `api/*.ts`
-handlers and `lib/*.ts` logic through thin adapters — nothing in the
-request-handling logic is forked between the two deployment targets.
+The editor ships as a plain Docker image, built from the repo-root
+`Dockerfile`, with a small Node server at [`server/`](server) that serves the
+built `dist/` app and the `/api/render` and `/api/health` routes — there is
+no separate serverless deployment target any more.
 
 ### Build and run
 
@@ -91,7 +86,7 @@ docker run -p 8080:8080 metaball-editor
 or locally without Docker, after `npm run build`:
 
 ```bash
-npm run build:server -w metaball-editor   # compiles server/ + api/ + lib/ to dist-server/
+npm run build:server -w metaball-editor   # compiles server/ + lib/ to dist-server/
 npm run serve -w metaball-editor          # node dist-server/server/index.js
 ```
 
@@ -103,6 +98,7 @@ npm run serve -w metaball-editor          # node dist-server/server/index.js
 | `OPENAI_API_KEY`            | Optional server-only key for AI material renders (see warning above) |
 | `OPENAI_IMAGE_MODEL`        | Optional model override (default `gpt-image-2`)                   |
 | `RENDER_MAX_PER_HOUR`       | Renders allowed per client IP per hour (default `10`, `0` = unlimited) |
+| `TRUST_PROXY`               | Set to `1` behind a trusted reverse proxy that rewrites `X-Forwarded-For`; otherwise the limiter keys on the socket address (the header is client-forgeable) |
 
 `GET /api/health` always returns `200 {"ok":true}`, for the deploy contract's
 health check.

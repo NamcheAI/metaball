@@ -68,19 +68,20 @@ deployments set the same variable in the server runtime.
 deployment (see [`editor/README.md`](../editor/README.md)) and there is no PIN
 gate in front of it any more. Anyone who can reach the deployment can call
 this endpoint and spend the configured provider's credits. The self-hosted
-server therefore rate limits it per client IP (`RENDER_MAX_PER_HOUR`,
-default 10/hour) as a spending brake. That brake does not exist on the
-serverless (Vercel) path: do not set `OPENAI_API_KEY` there without adding
-some other protection in front first (e.g. a reverse-proxy auth layer or an
-IP allowlist).
+server -- the only deployment target, now that the Vercel path is gone --
+therefore rate limits it per client IP (`RENDER_MAX_PER_HOUR`, default
+10/hour; honor `X-Forwarded-For` only with `TRUST_PROXY=1`) as a spending
+brake, not authentication.
 
 ## Code boundaries
 
 - `editor/lib/ai-render-contract.ts` owns provider-neutral parameters, input and
   result types, validation and prompt composition.
 - `editor/lib/openai-image-render.ts` is the first server-only provider adapter.
-- `editor/api/render.ts` is the production serverless endpoint.
-- `editor/vite.config.ts` exposes the same endpoint during local development.
+- `editor/server/render.ts` handles `POST /api/render`, called from
+  `editor/server/app.ts` after its per-client rate limit
+  (`editor/server/render-rate-limit.ts`).
+- `editor/vite.config.ts` exposes an equivalent endpoint during local development.
 - `editor/src/lib/aiRender.ts` captures and prepares browser images, but never
   receives a provider credential.
 - `editor/src/components/AIRenderPanel.tsx` owns transient controls and result

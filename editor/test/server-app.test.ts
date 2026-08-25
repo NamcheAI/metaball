@@ -73,19 +73,6 @@ test('the render endpoint is rate limited per client', async (t) => {
   });
 });
 
-test('the /impressum and /datenschutz rewrites serve their .html files', async () => {
-  const dir = makeDistDir();
-  writeFileSync(path.join(dir, 'impressum.html'), '<html>impressum</html>');
-  writeFileSync(path.join(dir, 'datenschutz.html'), '<html>datenschutz</html>');
-  await withServer(dir, async (base) => {
-    const impressum = await fetch(`${base}/impressum`);
-    assert.equal(await impressum.text(), '<html>impressum</html>');
-
-    const datenschutz = await fetch(`${base}/datenschutz`);
-    assert.equal(await datenschutz.text(), '<html>datenschutz</html>');
-  });
-});
-
 test('hashed assets are cached immutably, the app shell is never cached', async () => {
   await withServer(makeDistDir(), async (base) => {
     const asset = await fetch(`${base}/assets/app.js`);

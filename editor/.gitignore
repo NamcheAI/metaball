@@ -26,4 +26,3 @@ dist-server
 *.njsproj
 *.sln
 *.sw?
-.vercel

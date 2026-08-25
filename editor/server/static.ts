@@ -3,12 +3,6 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-/** Matches `editor/vercel.json`'s rewrites so the same URLs work self-hosted. */
-const REWRITES: Record<string, string> = {
-  '/impressum': '/impressum.html',
-  '/datenschutz': '/datenschutz.html',
-};
-
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -67,10 +61,10 @@ function notFound(res: ServerResponse): void {
 }
 
 /**
- * Serves `editor/dist/` (the Vite build output): applies the same rewrites
- * as `vercel.json`, falls back to `index.html` for client-side routes, and
- * always writes a response (a real 404 for missing assets or API-like
- * paths, so the SPA fallback never masks a broken asset URL).
+ * Serves `editor/dist/` (the Vite build output): falls back to `index.html`
+ * for client-side routes, and always writes a response (a real 404 for
+ * missing assets or API-like paths, so the SPA fallback never masks a
+ * broken asset URL).
  */
 export async function serveStatic(
   req: IncomingMessage,
@@ -87,7 +81,7 @@ export async function serveStatic(
   // normalized, dot-dot segments rejected). The normalize + `..` +
   // containment checks below stay as defense in depth for any future
   // caller that skips that pipeline.
-  const normalized = path.posix.normalize(REWRITES[pathname] ?? pathname);
+  const normalized = path.posix.normalize(pathname);
   if (normalized.includes('..')) {
     res.statusCode = 400;
     res.end();

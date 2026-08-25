@@ -5,5 +5,5 @@
     "noEmit": false,
     "outDir": "./dist-server"
   },
-  "include": ["api/**/*.ts", "lib/**/*.ts", "server/**/*.ts"]
+  "include": ["lib/**/*.ts", "server/**/*.ts"]
 }
