@@ -11,6 +11,7 @@ export type SharedLoginRateLimiter = {
 };
 
 let sharedLimiter: SharedLoginRateLimiter | undefined;
+let memoryLimiter: SharedLoginRateLimiter | undefined;
 
 export type LoginAttempt = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
@@ -29,11 +30,47 @@ export function loginRateLimitKey(req: Pick<VercelRequest, 'headers'>): string {
   );
 }
 
-function sharedLoginRateLimiter(): SharedLoginRateLimiter {
+/**
+ * Single-process in-memory sliding window. Used as the fallback when no
+ * shared store is configured (self-hosted server with no Upstash env), and
+ * as the last resort so login rate limiting can always be constructed.
+ * Per-instance only: on a horizontally scaled deployment each instance
+ * tracks attempts independently, which is why the shared Upstash-backed
+ * limiter is preferred whenever it is configured.
+ */
+export function createMemoryLoginRateLimiter(
+  maxAttempts = MAX_ATTEMPTS,
+  windowMs = WINDOW_MS,
+): SharedLoginRateLimiter {
+  const attempts = new Map<string, number[]>();
+
+  function prune(key: string, now: number): number[] {
+    const timestamps = (attempts.get(key) ?? []).filter((ts) => now - ts < windowMs);
+    if (timestamps.length > 0) attempts.set(key, timestamps);
+    else attempts.delete(key);
+    return timestamps;
+  }
+
+  return {
+    async limit(key: string) {
+      const now = Date.now();
+      const timestamps = prune(key, now);
+      if (timestamps.length >= maxAttempts) {
+        return { success: false, reset: (timestamps[0] ?? now) + windowMs };
+      }
+      timestamps.push(now);
+      attempts.set(key, timestamps);
+      return { success: true, reset: now + windowMs };
+    },
+    async resetUsedTokens(key: string) {
+      attempts.delete(key);
+    },
+  };
+}
+
+function upstashLoginRateLimiter(): SharedLoginRateLimiter | undefined {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return undefined;
   if (!sharedLimiter) {
-    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error('Shared login rate limiting is not configured');
-    }
     sharedLimiter = new Ratelimit({
       redis: Redis.fromEnv(),
       limiter: Ratelimit.slidingWindow(MAX_ATTEMPTS, '15 m'),
@@ -45,10 +82,20 @@ function sharedLoginRateLimiter(): SharedLoginRateLimiter {
   return sharedLimiter;
 }
 
+/**
+ * Prefer the shared Upstash-backed limiter when it is configured (protects
+ * against multi-instance deployments, e.g. Vercel). Fall back to an
+ * in-memory limiter otherwise -- it can always be constructed, so a login
+ * attempt is never rejected purely for lack of a rate limiter.
+ */
+function defaultLoginRateLimiter(): SharedLoginRateLimiter {
+  return upstashLoginRateLimiter() ?? (memoryLimiter ??= createMemoryLoginRateLimiter());
+}
+
 /** Atomically reserve one verification attempt in shared storage before doing PIN work. */
 export async function takeLoginAttempt(
   key: string,
-  limiter: SharedLoginRateLimiter = sharedLoginRateLimiter(),
+  limiter: SharedLoginRateLimiter = defaultLoginRateLimiter(),
   now = Date.now(),
 ): Promise<LoginAttempt> {
   const result = await limiter.limit(key);
@@ -67,7 +114,7 @@ export async function takeLoginAttempt(
 
 export async function resetLoginAttempts(
   key: string,
-  limiter: SharedLoginRateLimiter = sharedLoginRateLimiter(),
+  limiter: SharedLoginRateLimiter = defaultLoginRateLimiter(),
 ): Promise<void> {
   await limiter.resetUsedTokens(key);
 }
