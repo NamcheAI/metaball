@@ -30,84 +30,50 @@ npm run build    # type-check + production build
 npm run preview  # preview the production build
 ```
 
-## Deploy to Vercel (PIN login)
+## The editor is public
 
-The editor can be deployed to [Vercel](https://vercel.com) with a simple PIN gate.
-Vercel deployments require a complete auth configuration: visitors enter the PIN
-once, then a signed httpOnly cookie keeps them signed in for 7 days. Missing or
-partial credentials fail closed with HTTP 503.
+Metaball Studio has no authentication. There is no login, no PIN, no gate in
+front of any route. Anyone who can reach a deployment can open it and use it.
+(Jodok, 2026-08-25: the editor deploys as a public container at
+metaball.namche.ai; an earlier Vercel PIN gate and the Vercel deployment path
+itself have both been removed entirely — the self-hosted container is now the
+only way this editor ships.)
 
-### 1. Push the project
-
-From the `metaball-editor` folder, initialize git (if needed), commit, and push to
-GitHub/GitLab/Bitbucket.
-
-### 2. Import on Vercel
-
-1. [New Project](https://vercel.com/new) → import the repo.
-2. **Root directory:** `metaball-editor` (if the repo root is the parent folder).
-3. Framework preset should detect **Vite** automatically.
-
-### 3. Environment variables
-
-In Project → Settings → Environment Variables, add:
-
-| Name                       | Value                                            |
-| -------------------------- | ------------------------------------------------ |
-| `AUTH_PIN`                 | Your PIN (e.g. `4829`)                           |
-| `AUTH_SECRET`              | Long random string (e.g. `openssl rand -hex 32`) |
-| `UPSTASH_REDIS_REST_URL`   | REST URL of the shared Upstash Redis database    |
-| `UPSTASH_REDIS_REST_TOKEN` | REST token of the shared Upstash Redis database  |
-| `OPENAI_API_KEY`           | Optional server-only key for AI material renders |
-| `OPENAI_IMAGE_MODEL`       | Optional model override (default `gpt-image-2`)  |
-
-Apply to **Production** (and Preview if you want PIN on preview URLs too).
-Create or connect an Upstash Redis database through the Vercel Marketplace first;
-the shared store enforces five PIN attempts per source across all function instances.
-When Upstash is configured, login rate limiting also fails closed if the store
-times out. Without Upstash configured, login on Vercel fails closed (503): a
-per-instance in-memory window would hand every cold-started function a fresh
-attempt budget, so serverless never falls back. (The self-hosted server below
-does opt in to the in-memory fallback — it is one long-lived process.) Only
-intentionally public Vercel deployments should set `AUTH_DISABLED=1`; omitting
-credentials alone never disables authentication.
-
-### 4. Deploy
-
-Deploy from the Vercel dashboard or locally:
-
-```bash
-npx vercel --prod
-```
+> **`/api/render` spends real money.** It calls a paid OpenAI image endpoint
+> on every request, and since the editor is public, anyone who can reach a
+> deployment can trigger it. The server caps this at `RENDER_MAX_PER_HOUR`
+> renders per client IP per hour (default 10, `0` disables the guard) — a
+> spending brake, not authentication. The limiter keys on the raw socket
+> address unless `TRUST_PROXY=1` declares a trusted reverse proxy in front
+> (see the environment variables below). See
+> [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
 
 ### Local development
 
-- `npm run dev` — open editor, **no PIN** (auth disabled when env vars are unset).
-- `vercel dev` — full stack with middleware + login (reads `.env.local`).
+```bash
+npm run dev
+```
 
-Copy `.env.example` to `.env.local` and fill in values to test login locally.
-The same file configures AI material renders for the normal Vite dev server;
-see [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md).
+Copy `.env.example` to `.env.local` and add `OPENAI_API_KEY` to try AI
+material renders while iterating on the UI — the Vite dev server has its own
+lightweight `/api/render` route for this. It does not run the rate limiter,
+health check, or static file server: to exercise the actual self-hosted
+server (the one described below), build it and run it directly:
 
-### How it works
+```bash
+npm run build                            # from the repo root
+npm run serve -w metaball-editor         # node dist-server/server/index.js
+```
 
-- `middleware.ts` — redirects unauthenticated visitors to `/login`.
-- `public/login.html` — PIN form → `POST /api/auth`.
-- `api/auth.ts` — rate-limits and verifies the PIN, then sets a signed cookie.
-- `api/logout.ts` — clears the authentication cookie at `/api/logout`.
-
-**Note:** This is lightweight access control, not enterprise auth. Do not reuse the
-PIN for sensitive data; rotate it if shared widely.
+See [`../docs/AI_RENDERING.md`](../docs/AI_RENDERING.md) for the render
+pipeline and code boundaries.
 
 ## Self-hosted container
 
-For metaball.namche.ai the editor also ships as a plain Docker image, built
-from the repo-root `Dockerfile`, with a small Node server at
-[`server/`](server) standing in for Vercel's static hosting + middleware +
-serverless functions. It serves the same `dist/` build, applies the same
-`middleware.ts` auth semantics, and reuses the same `api/*.ts` handlers and
-`lib/*.ts` logic through thin adapters — nothing in the request-handling
-logic is forked between the two deployment targets.
+The editor ships as a plain Docker image, built from the repo-root
+`Dockerfile`, with a small Node server at [`server/`](server) that serves the
+built `dist/` app and the `/api/render` and `/api/health` routes — there is
+no separate serverless deployment target any more.
 
 ### Build and run
 
@@ -120,7 +86,7 @@ docker run -p 8080:8080 metaball-editor
 or locally without Docker, after `npm run build`:
 
 ```bash
-npm run build:server -w metaball-editor   # compiles server/ + api/ + lib/ to dist-server/
+npm run build:server -w metaball-editor   # compiles server/ + lib/ to dist-server/
 npm run serve -w metaball-editor          # node dist-server/server/index.js
 ```
 
@@ -129,33 +95,13 @@ npm run serve -w metaball-editor          # node dist-server/server/index.js
 | Name                        | Value                                                          |
 | --------------------------- | --------------------------------------------------------------- |
 | `PORT`                      | Port to listen on (default `8080`)                               |
-| `AUTH_PIN`                  | PIN gate, same as Vercel (unset = auth disabled)                 |
-| `AUTH_SECRET`                | Long random signing string, required alongside `AUTH_PIN`        |
-| `AUTH_DISABLED`             | Set to `1` for an intentionally public deployment                 |
-| `UPSTASH_REDIS_REST_URL`    | Optional: shared login rate limiting across instances             |
-| `UPSTASH_REDIS_REST_TOKEN`  | Optional: shared login rate limiting across instances             |
-| `OPENAI_API_KEY`            | Optional server-only key for AI material renders                  |
+| `OPENAI_API_KEY`            | Optional server-only key for AI material renders (see warning above) |
 | `OPENAI_IMAGE_MODEL`        | Optional model override (default `gpt-image-2`)                   |
+| `RENDER_MAX_PER_HOUR`       | Renders allowed per client IP per hour (default `10`, `0` = unlimited) |
+| `TRUST_PROXY`               | Set to `1` behind a trusted reverse proxy that rewrites `X-Forwarded-For`; otherwise the limiter keys on the socket address (the header is client-forgeable) |
 
-Without `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN`, login rate
-limiting falls back to an in-memory sliding window scoped to the single
-running process — this container is deployed as one instance, so that is
-equivalent to the shared store for this deployment shape.
-
-`GET /api/health` always returns `200 {"ok":true}`, exempt from the auth
-gate, for the deploy contract's health check.
-
-**The image itself sets `AUTH_DISABLED=1`** (see the Dockerfile): the
-container is the intentionally public Studio editor, and the host passes no
-env at all. AI material rendering returns its normal "not configured" 503
-until a key is provided. Note that omitting `AUTH_PIN`/`AUTH_SECRET`
-without `AUTH_DISABLED=1` does **not** make the editor open — with no auth
-env vars at all, `authConfiguration()` reports `invalid` and every
-non-exempt route (including `/`) fails closed with 503, matching the
-Vercel deployment's existing fail-closed behavior. To gate a deployment
-of this image, override at runtime: `AUTH_DISABLED=0` plus
-`AUTH_PIN`/`AUTH_SECRET` (deployment env beats the image default), and add
-`OPENAI_API_KEY` to enable AI rendering.
+`GET /api/health` always returns `200 {"ok":true}`, for the deploy contract's
+health check.
 
 ## How to use
 

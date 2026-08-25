@@ -11,7 +11,7 @@ current 3D canvas (Image 1: shape + camera)
                          + optional material reference (Image 2)
                          + generic intent parameters
                                       ↓
-                         POST /api/render (authenticated)
+                         POST /api/render (no auth -- public)
                                       ↓
                          server-side provider adapter
                                       ↓
@@ -62,16 +62,26 @@ cost guardrail.
 
 `OPENAI_API_KEY` must remain server-only. Do not prefix it with `VITE_`; Vite
 variables with that prefix are intentionally shipped to the browser. Production
-deployments set the same variable in the server runtime. `/api/render` is covered
-by the Studio PIN middleware.
+deployments set the same variable in the server runtime.
+
+**`/api/render` has no authentication** -- the Studio editor is a public
+deployment (see [`editor/README.md`](../editor/README.md)) and there is no PIN
+gate in front of it any more. Anyone who can reach the deployment can call
+this endpoint and spend the configured provider's credits. The self-hosted
+server -- the only deployment target, now that the Vercel path is gone --
+therefore rate limits it per client IP (`RENDER_MAX_PER_HOUR`, default
+10/hour; honor `X-Forwarded-For` only with `TRUST_PROXY=1`) as a spending
+brake, not authentication.
 
 ## Code boundaries
 
 - `editor/lib/ai-render-contract.ts` owns provider-neutral parameters, input and
   result types, validation and prompt composition.
 - `editor/lib/openai-image-render.ts` is the first server-only provider adapter.
-- `editor/api/render.ts` is the production serverless endpoint.
-- `editor/vite.config.ts` exposes the same endpoint during local development.
+- `editor/server/render.ts` handles `POST /api/render`, called from
+  `editor/server/app.ts` after its per-client rate limit
+  (`editor/server/render-rate-limit.ts`).
+- `editor/vite.config.ts` exposes an equivalent endpoint during local development.
 - `editor/src/lib/aiRender.ts` captures and prepares browser images, but never
   receives a provider credential.
 - `editor/src/components/AIRenderPanel.tsx` owns transient controls and result

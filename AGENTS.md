@@ -29,8 +29,8 @@ Do not edit generated `dist/` files. The build creates them.
 | the 2D mark geometry, presets, rasterization, or SVG output | `core/src/` |
 | the reusable 3D viewer, camera, field, or organic material presets | `renderer/src/` |
 | editor controls, document state, motion, liquid, export, or Blender handoff | `editor/src/` |
-| AI render contracts, server adapters, or API routes | `editor/lib/` and `editor/api/` |
-| app colors and typography | `editor/public/theme.css` using tokens from `../design/tokens/` |
+| AI render contracts, server adapters, or API routes | `editor/lib/` and `editor/server/` |
+| app colors and typography | `editor/src/index.css` using tokens from `@namche/design-tokens` |
 | Blender-agent instructions | `.cursor/skills/` and `editor/docs/` |
 
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) before moving code across

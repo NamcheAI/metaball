@@ -1,12 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import authHandler from '../api/auth.js';
-import logoutHandler from '../api/logout.js';
-import renderHandler from '../api/render.js';
-import { applyAuthGate } from './auth-gate.js';
+import { handleRenderRequest } from './render.js';
+import {
+  createRenderRateLimiter,
+  renderRateLimitBudget,
+  renderRateLimitKey,
+  renderRateLimitTrustProxy,
+} from './render-rate-limit.js';
+import { readRequestBody } from './request-body.js';
 import { serveStatic } from './static.js';
-import { readRequestBody, toVercelRequest, toVercelResponse } from './vercel-adapter.js';
 
 // Compiled to dist-server/server/app.js; editor/dist/ (the Vite build) is a
 // sibling of dist-server/ one level up from there.
@@ -24,21 +27,23 @@ export type AppOptions = { distDir?: string };
 export type RequestListener = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
 /**
- * Builds the self-hosted server's request pipeline: the health check first
- * (always exempt), then the `middleware.ts`-equivalent auth gate, then the
- * three API routes (thin adapters over the unmodified `api/*.ts` Vercel
- * handlers), then the static file server as the catch-all.
+ * Builds the server's request pipeline: the health check first, then the
+ * render API route (rate limited per client, then handled by
+ * `render.ts`), then the static file server as the catch-all.
  */
 export function createRequestListener(options: AppOptions = {}): RequestListener {
   const distDir = options.distDir ?? DEFAULT_DIST_DIR;
+  // Spending guard, not authentication: the editor is public, but a render
+  // is a paid provider call whenever OPENAI_API_KEY is configured.
+  const renderLimiter = createRenderRateLimiter(renderRateLimitBudget());
+  const trustProxy = renderRateLimitTrustProxy();
 
   return async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
-      // Canonicalize ONCE, before any routing decision: the auth gate, the
-      // API routes and the static server must all judge the same string.
-      // Deciding exemptions on the encoded path and decoding later would let
-      // `/assets/%2E%2E/index.html` pass the gate as an asset and then
-      // normalize into the protected app shell.
+      // Canonicalize ONCE, before any routing decision: the API routes and
+      // the static server must both judge the same string. Deciding on the
+      // encoded path and decoding later would let `/assets/%2E%2E/index.html`
+      // normalize into a path outside the intended static root.
       const rawPathname = new URL(req.url ?? '/', 'http://internal.invalid').pathname;
       let decodedPathname: string;
       try {
@@ -61,26 +66,18 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
         return;
       }
 
-      const gateResult = await applyAuthGate(req, res, pathname);
-      if (gateResult === 'handled') return;
-
-      // Method validation (POST-only for auth/render) lives in the handlers
-      // themselves, exactly as it does on Vercel -- routing here only
-      // matches the path so that behavior isn't duplicated.
-      if (pathname === '/api/auth') {
-        const body = await readRequestBody(req);
-        await authHandler(toVercelRequest(req, body), toVercelResponse(res));
-        return;
-      }
-
-      if (pathname === '/api/logout') {
-        await logoutHandler(toVercelRequest(req, undefined), toVercelResponse(res));
-        return;
-      }
-
+      // Method validation (POST-only for render) lives in the handler
+      // itself -- routing here only matches the path so that behavior
+      // isn't duplicated.
       if (pathname === '/api/render') {
+        const verdict = renderLimiter.take(renderRateLimitKey(req, trustProxy));
+        if (!verdict.allowed) {
+          res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
+          sendJson(res, 429, { error: 'Render rate limit reached. Try again later.' });
+          return;
+        }
         const body = await readRequestBody(req);
-        await renderHandler(toVercelRequest(req, body), toVercelResponse(res));
+        await handleRenderRequest(res, req.method, body);
         return;
       }
 
