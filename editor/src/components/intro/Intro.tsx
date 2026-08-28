@@ -218,7 +218,7 @@ export default function Intro() {
 
           <div className="grid items-center gap-12 md:grid-cols-[1.15fr_1fr] md:gap-16">
             <div className="flex flex-col gap-6">
-              <Eyebrow>Designexploration: Namche</Eyebrow>
+              <Eyebrow>Design exploration: NAMCHE</Eyebrow>
               <h1 className="max-w-[14ch] font-display text-4xl leading-[1.04] font-medium tracking-tight text-balance sm:text-5xl lg:text-6xl">
                 From chessboard to network.
               </h1>
@@ -239,7 +239,7 @@ export default function Intro() {
       <Section className="border-t">
         <div className="grid items-center gap-12 md:grid-cols-[1fr_1fr] md:gap-16">
           <div className="flex flex-col gap-6">
-            <Eyebrow>Designsystem [Bestehend]</Eyebrow>
+            <Eyebrow>Design system [Existing]</Eyebrow>
             <h2 className="font-display text-2xl leading-tight font-medium tracking-tight sm:text-3xl">
               A brand that grew up on graph paper.
             </h2>
@@ -272,7 +272,7 @@ export default function Intro() {
           <Eyebrow>The pivot</Eyebrow>
           <blockquote
             lang="de"
-            cite="Designexploration: Namche"
+            cite="Design exploration: NAMCHE"
             className="max-w-[24ch] font-display text-2xl leading-[1.2] font-medium tracking-tight text-balance sm:max-w-[30ch] sm:text-3xl lg:text-4xl"
           >
             Vom Schachbrett zum Netzwerk: statt geometrischer Trennung entsteht ein reaktives,
@@ -289,7 +289,7 @@ export default function Intro() {
       <Section className="border-t">
         <div className="flex flex-col gap-10">
           <div className="flex flex-col gap-6">
-            <Eyebrow>Designsystem [Neu]</Eyebrow>
+            <Eyebrow>Design system [New]</Eyebrow>
             <h2 className="font-display text-2xl leading-tight font-medium tracking-tight sm:text-3xl">
               How the mark is born.
             </h2>
@@ -402,7 +402,7 @@ export default function Intro() {
               href="https://ui.namche.ai"
               target="_blank"
               rel="noreferrer"
-              className="font-mono text-[0.625rem] tracking-[0.14em] text-muted-foreground uppercase hover:text-foreground"
+              className="font-mono text-[0.625rem] tracking-[0.14em] text-muted-foreground uppercase no-underline hover:text-foreground"
             >
               Built on the NAMCHE design system
             </a>
