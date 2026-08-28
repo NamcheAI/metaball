@@ -15,12 +15,30 @@ import {
 
 const DEFAULT_MODEL = 'gpt-5-mini';
 
-const INSTRUCTIONS = `You tune an image-editing prompt that transfers a material photo onto a 3D blob sculpture. Analyze the attached material photo and answer with parameters, each 0-100:
+const INSTRUCTIONS = `You tune an image-editing prompt that transfers a material photo onto a 3D blob sculpture. Analyze the attached material photo and answer with parameters, each 0-100.
+
+STRUCTURE — what the material does to the form:
 - deformAmount: how strongly the blob's silhouette should warp to match the material's structure (0 = perfectly smooth material like glass or milk keeps the form; 100 = wildly irregular material like coral or torn foam should reshape the form).
 - nubDensity: how many finger-like nubs/tendrils should bud from the surface (high for coral, sponge, moss tips; near 0 for smooth or flat materials).
 - porosityAmount: how much of the structure should be threaded with holes (100 for foam, bone, honeycomb; 0 for solid materials).
 - poreSize: typical hole size relative to the object (small pinholes ~2, large voids ~60).
 - heightVariation: unevenness of surface relief (0 flat/polished, 100 deep ridges and peaks).
+
+OPTICS — how the surface reads under light:
+- glossiness: 0 fully matte (chalk, unglazed clay, moss), 50 satin, 100 wet or mirror-bright (glazed ceramic, vinyl, ice, liquid).
+- translucency: 0 fully opaque (stone, bark, metal), 100 strongly light-transmitting with subsurface glow (wax, jade, milk, thin petals, skin in backlight).
+- patternScale: how large the material's motif should read on the object. 5 = a few huge motifs spanning the whole form (large polka dots, big leaves), 50 = motif clearly readable several times across the form, 95 = fine dense grain (sand, fabric weave, fur).
+
+CALIBRATION — anchor your numbers to these so the same value means the same thing across different materials:
+- Milk / poured cream: deform 0, nubs 0, porosity 0, pore 0, height 5, gloss 85, translucency 70, pattern 15.
+- Polished stone / pebble: deform 5, nubs 0, porosity 0, pore 0, height 10, gloss 60, translucency 5, pattern 30.
+- Glossy polka-dot vinyl: deform 10, nubs 0, porosity 0, pore 0, height 5, gloss 90, translucency 0, pattern 30.
+- Beeswax / candle wax: deform 20, nubs 5, porosity 5, pore 5, height 25, gloss 40, translucency 75, pattern 20.
+- Dry sand: deform 15, nubs 0, porosity 10, pore 3, height 30, gloss 10, translucency 0, pattern 95.
+- Conifer needles / moss: deform 35, nubs 80, porosity 10, pore 3, height 60, gloss 40, translucency 25, pattern 70.
+- Honeycomb / bath foam: deform 30, nubs 10, porosity 100, pore 20, height 45, gloss 30, translucency 35, pattern 55.
+- Coral / sea sponge: deform 75, nubs 85, porosity 85, pore 25, height 80, gloss 20, translucency 15, pattern 60.
+
 Also write materialDescription: one vivid sentence naming the material family, palette, finish and translucency, usable as a standalone prompt line.`;
 
 const SCHEMA = {
@@ -33,6 +51,9 @@ const SCHEMA = {
     porosityAmount: { type: 'integer', minimum: 0, maximum: 100 },
     poreSize: { type: 'integer', minimum: 0, maximum: 100 },
     heightVariation: { type: 'integer', minimum: 0, maximum: 100 },
+    glossiness: { type: 'integer', minimum: 0, maximum: 100 },
+    translucency: { type: 'integer', minimum: 0, maximum: 100 },
+    patternScale: { type: 'integer', minimum: 0, maximum: 100 },
     materialDescription: { type: 'string', maxLength: 600 },
   },
 } as const;

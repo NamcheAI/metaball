@@ -24,13 +24,23 @@ export type AIRenderSize = (typeof AI_RENDER_SIZES)[number];
 export const AI_RENDER_BACKGROUNDS = ['opaque', 'transparent', 'auto'] as const;
 export type AIRenderBackground = (typeof AI_RENDER_BACKGROUNDS)[number];
 
-/** The five knobs of the metamorph template, all 0-100 percent. */
+/**
+ * The metamorph knobs, all 0-100 percent. The first five describe STRUCTURE
+ * (what the material does to the form); the last three describe OPTICS (how
+ * the surface reads under light). Structure alone could not separate wet
+ * stone from chalk, milk from marble, or a few huge polka dots from a fine
+ * speckle -- those differences live entirely in the optics group, which is
+ * why materials that are structurally identical used to render alike.
+ */
 export type AIMetamorphParams = {
   deformAmount: number;
   nubDensity: number;
   porosityAmount: number;
   poreSize: number;
   heightVariation: number;
+  glossiness: number;
+  translucency: number;
+  patternScale: number;
 };
 
 export const DEFAULT_AI_METAMORPH_PARAMS: AIMetamorphParams = {
@@ -39,6 +49,9 @@ export const DEFAULT_AI_METAMORPH_PARAMS: AIMetamorphParams = {
   porosityAmount: 60,
   poreSize: 20,
   heightVariation: 50,
+  glossiness: 50,
+  translucency: 15,
+  patternScale: 40,
 };
 
 export const AI_METAMORPH_PARAM_KEYS = [
@@ -47,6 +60,9 @@ export const AI_METAMORPH_PARAM_KEYS = [
   'porosityAmount',
   'poreSize',
   'heightVariation',
+  'glossiness',
+  'translucency',
+  'patternScale',
 ] as const satisfies ReadonlyArray<keyof AIMetamorphParams>;
 
 export type AIRenderParams = {
@@ -190,7 +206,7 @@ export function buildAIMetamorphPrompt(params: AIRenderParams): string {
       : params.background === 'opaque'
         ? params.backgroundDescription
         : `Choose a background that supports the object. Direction: ${params.backgroundDescription}`;
-  return `Apply the surface texture, material, color palette, and finish from the second reference image onto the object in the first image. Use the second image ONLY as a material sample: ignore its scene, objects, background, perspective and lighting entirely. Keep the camera angle, framing, scale and position of the object exactly as in the first image. Apply surface deformation at ${m.deformAmount}% intensity — at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the irregular structure of the reference material. Grow ${m.nubDensity}% organic, finger-like nubs and tendrils out from the surface, as if the material itself is dripping or budding outward. Thread ${m.porosityAmount}% porosity through the entire structure — including through the nubs and tendrils themselves, not just the flat surface — with ${m.poreSize}% holes and cavities running organically through the material. Vary the surface relief at ${m.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the irregular topology of the reference. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish.
+  return `Apply the surface texture, material, color palette, and finish from the second reference image onto the object in the first image. Use the second image ONLY as a material sample: ignore its scene, objects, background, perspective and lighting entirely. Keep the camera angle, framing, scale and position of the object exactly as in the first image. Apply surface deformation at ${m.deformAmount}% intensity — at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the irregular structure of the reference material. Grow ${m.nubDensity}% organic, finger-like nubs and tendrils out from the surface, as if the material itself is dripping or budding outward. Thread ${m.porosityAmount}% porosity through the entire structure — including through the nubs and tendrils themselves, not just the flat surface — with ${m.poreSize}% holes and cavities running organically through the material. Vary the surface relief at ${m.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the irregular topology of the reference. Render the finish at ${m.glossiness}% gloss — 0% is fully matte and light-absorbing like chalk or unglazed clay, 100% is a wet, mirror-bright specular sheen. Give the material ${m.translucency}% translucency — 0% fully opaque, 100% light passing visibly through thinner areas with soft subsurface scattering, as in wax, jade or milk. Scale the material's pattern to ${m.patternScale}% — low values read as a few large motifs spanning the whole form, high values as fine, dense repetition. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish.
 
 LIGHTING
 ${params.lightingDescription}

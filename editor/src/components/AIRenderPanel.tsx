@@ -45,6 +45,11 @@ const METAMORPH_SLIDERS: Array<{ key: keyof AIMetamorphParams; label: string }> 
   { key: 'porosityAmount', label: 'Porosity' },
   { key: 'poreSize', label: 'Pore size' },
   { key: 'heightVariation', label: 'Height variation' },
+  // Optics: what separates wet stone from chalk, or a few big dots from a
+  // fine speckle -- structurally identical materials that must not render alike.
+  { key: 'glossiness', label: 'Glossiness' },
+  { key: 'translucency', label: 'Translucency' },
+  { key: 'patternScale', label: 'Pattern scale' },
 ];
 
 export default function AIRenderPanel({

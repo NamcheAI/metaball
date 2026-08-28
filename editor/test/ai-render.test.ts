@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  AI_METAMORPH_PARAM_KEYS,
   AI_RENDER_SIZES,
   DEFAULT_AI_METAMORPH_PARAMS,
   DEFAULT_AI_RENDER_PARAMS,
@@ -112,6 +113,11 @@ test('metamorph params normalize and clamp; junk shapes drop to null', () => {
     porosityAmount: DEFAULT_AI_METAMORPH_PARAMS.porosityAmount,
     poreSize: 2,
     heightVariation: 60,
+    // An older payload that predates the optics knobs still normalizes:
+    // the missing keys take their defaults rather than becoming NaN.
+    glossiness: DEFAULT_AI_METAMORPH_PARAMS.glossiness,
+    translucency: DEFAULT_AI_METAMORPH_PARAMS.translucency,
+    patternScale: DEFAULT_AI_METAMORPH_PARAMS.patternScale,
   });
   assert.equal(normalizeAIMetamorphParams(null), null);
   assert.equal(normalizeAIMetamorphParams('metamorph'), null);
@@ -220,4 +226,38 @@ test('every offered render size satisfies gpt-image-2 constraints', () => {
   assert.equal(normalizeAIRenderParams({ size: '3840x2160' }).size, '3840x2160');
   // and an unsupported one still falls back rather than reaching the provider
   assert.equal(normalizeAIRenderParams({ size: '7680x4320' }).size, DEFAULT_AI_RENDER_PARAMS.size);
+});
+
+test('the optics knobs reach the template and separate look-alike structures', () => {
+  const structure = {
+    deformAmount: 5, nubDensity: 0, porosityAmount: 0, poreSize: 0, heightVariation: 10,
+  };
+  const wet = normalizeAIRenderParams({
+    ...DEFAULT_AI_RENDER_PARAMS,
+    metamorph: { ...structure, glossiness: 90, translucency: 0, patternScale: 30 },
+  });
+  const chalk = normalizeAIRenderParams({
+    ...DEFAULT_AI_RENDER_PARAMS,
+    metamorph: { ...structure, glossiness: 5, translucency: 70, patternScale: 95 },
+  });
+  const wetPrompt = buildAIRenderPrompt(wet, true);
+  const chalkPrompt = buildAIRenderPrompt(chalk, true);
+
+  assert.match(wetPrompt, /finish at 90% gloss/);
+  assert.match(wetPrompt, /0% translucency/);
+  assert.match(wetPrompt, /pattern to 30%/);
+  assert.match(chalkPrompt, /finish at 5% gloss/);
+  assert.match(chalkPrompt, /70% translucency/);
+  assert.match(chalkPrompt, /pattern to 95%/);
+  // Structurally identical inputs must still produce different prompts --
+  // that difference is the whole point of the optics group.
+  assert.notEqual(wetPrompt, chalkPrompt);
+});
+
+test('every metamorph key is clamped and surfaced in the suggest schema', () => {
+  const wild = Object.fromEntries(AI_METAMORPH_PARAM_KEYS.map((key) => [key, 999]));
+  const clamped = normalizeAIMetamorphParams(wild);
+  for (const key of AI_METAMORPH_PARAM_KEYS) {
+    assert.equal(clamped?.[key], 100, `${key} should clamp to 100`);
+  }
 });
