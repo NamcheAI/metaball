@@ -6,9 +6,15 @@ import { cn } from "@/lib/utils"
 /* NAMCHE button. The brand's own Button paints a solid --gaia-erebos pill with
    --gaia-selene text and sets its label in uppercase mono at weight 500 — so
    the default action is ink on paper, never Rhododendron, and the pill is the
-   shape. Sizes are tightened from the brand's 43px CTA to fit dense UI. */
+   shape. Sizes are tightened from the brand's 43px CTA to fit dense UI.
+
+   `no-underline` is part of the base, not an oversight to fix upstream: the
+   design tokens underline every bare <a> because that is the editorial voice
+   for prose links, and they ask each consumer to reset it on buttons and
+   navigation chrome. A Button rendered as a link is chrome. The `link`
+   variant puts the underline back, and wins because it is merged last. */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding font-mono text-xs font-medium tracking-wide whitespace-nowrap uppercase transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-40 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding font-mono text-xs font-medium tracking-wide whitespace-nowrap uppercase no-underline transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-40 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
