@@ -3,6 +3,7 @@ export type {
   Metaball3DHandle,
   Metaball3DProps,
   Metaball3DQuality,
+  Metaball3DTexture,
 } from './Metaball3D.js';
 export {
   MATERIAL_PRESETS,

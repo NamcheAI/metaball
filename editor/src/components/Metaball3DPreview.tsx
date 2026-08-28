@@ -31,6 +31,7 @@ import {
 import { MC_RESOLUTION, toMetaball3DShape, updateMarchingCubesField } from '../lib/metaball3d';
 import { fitPreviewCameraDistance } from '../lib/camera3d';
 import { getMaterialPreset } from '../lib/materialPresets';
+import { textureForSlug } from '../lib/texturePresets';
 import { createMaterialForPreset } from '../lib/organicMaterials';
 import {
   liquidAttenuationDistance,
@@ -905,6 +906,7 @@ function PublicMaterialPreview({
       style={{ width: '100%', height: '100%', aspectRatio: 'auto' }}
       shape={shape}
       material={getMaterialPreset(doc.materialPreset).id}
+      texture={textureForSlug(doc.textureSlug, doc.textureScale, doc.textureAmount)}
       background="#ececf0"
       quality="high"
       renderContinuously={continuous}

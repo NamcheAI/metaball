@@ -840,6 +840,12 @@ export default function App() {
           onViewChange={setView}
           materialPreset={doc.materialPreset}
           onMaterialPresetChange={(id) => updateDocField('materialPreset', id)}
+          textureSlug={doc.textureSlug}
+          onTextureSlugChange={(slug) => updateDocField('textureSlug', slug)}
+          textureScale={doc.textureScale}
+          onTextureScaleChange={(value) => updateDocField('textureScale', value)}
+          textureAmount={doc.textureAmount}
+          onTextureAmountChange={(value) => updateDocField('textureAmount', value)}
           lookMode={doc.lookMode}
           onLookModeChange={(mode: LookMode) => updateDocField('lookMode', mode)}
           liquidPreset={doc.liquidPreset}

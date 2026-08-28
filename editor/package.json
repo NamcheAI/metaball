@@ -16,6 +16,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@namche/design-tokens": "^1.2.0",
+    "@namche/imagery": "^1.2.0",
     "@namche/metaball": "*",
     "@namche/metaball-react": "*",
     "@react-three/drei": "^10.7.7",

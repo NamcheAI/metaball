@@ -18,6 +18,11 @@ import { fitPreviewCameraDistance } from './camera.js';
 import { updateMarchingCubesField } from './field.js';
 import { createMaterial, materialNeedsEnvironment, type MaterialInput } from './materials.js';
 import { resolveMetaballShape, type MetaballShape, type ResolvedMetaballShape } from './shape.js';
+import {
+  applyTriplanarTexture,
+  loadTriplanarMaps,
+  type TriplanarMaps,
+} from './triplanar.js';
 
 const QUALITY_RESOLUTION = { low: 56, balanced: 72, high: 96 } as const;
 const CAMERA_FOV = 34;
@@ -31,12 +36,25 @@ export type Metaball3DHandle = {
   invalidate: () => void;
 };
 
+export type Metaball3DTexture = {
+  /** Color map URL, projected triplanar (the surface has no UVs). */
+  mapUrl: string;
+  normalMapUrl?: string;
+  roughnessMapUrl?: string;
+  /** Texture repeats per world unit. */
+  scale?: number;
+  /** 0..1 blend over the base material. */
+  amount?: number;
+};
+
 export type Metaball3DProps = {
   /** Canonical engine preset. Defaults to the current NAMCHE Loop. */
   preset?: string;
   /** Custom graph and shape controls. When supplied, it takes precedence over preset. */
   shape?: MetaballShape;
   material?: MaterialInput;
+  /** Optional triplanar-projected texture layered over the material. */
+  texture?: Metaball3DTexture;
   background?: THREE.ColorRepresentation;
   interactive?: boolean;
   /** Keep the render loop active for host-driven animation without rotating the camera. */
@@ -96,9 +114,38 @@ function CameraControls({
   );
 }
 
+function useTriplanarMaps(texture: Metaball3DTexture | undefined): TriplanarMaps | null {
+  const [maps, setMaps] = useState<TriplanarMaps | null>(null);
+  const { mapUrl, normalMapUrl, roughnessMapUrl } = texture ?? {};
+  useEffect(() => {
+    if (!mapUrl) {
+      setMaps(null);
+      return;
+    }
+    let alive = true;
+    const { promise, dispose } = loadTriplanarMaps({ mapUrl, normalMapUrl, roughnessMapUrl });
+    promise
+      .then((loaded) => {
+        if (alive) setMaps(loaded);
+      })
+      .catch(() => {
+        // A failed texture load falls back to the untextured material.
+        if (alive) setMaps(null);
+      });
+    return () => {
+      alive = false;
+      setMaps(null);
+      // Dispose after the load settles so an in-flight texture is not leaked.
+      promise.finally(dispose).catch(() => {});
+    };
+  }, [mapUrl, normalMapUrl, roughnessMapUrl]);
+  return maps;
+}
+
 function MetaballMesh({
   shape,
   materialInput,
+  texture,
   quality,
   updateDebounceMs,
   forwardedRef,
@@ -107,6 +154,7 @@ function MetaballMesh({
 }: {
   shape: ResolvedMetaballShape;
   materialInput: MaterialInput;
+  texture?: Metaball3DTexture;
   quality: Metaball3DQuality;
   updateDebounceMs: number;
   forwardedRef: React.ForwardedRef<Metaball3DHandle>;
@@ -123,7 +171,17 @@ function MetaballMesh({
     () => new MarchingCubes(QUALITY_RESOLUTION[quality], new THREE.MeshPhysicalMaterial(), false, false, 350000),
     [quality],
   );
-  const materialResult = useMemo(() => createMaterial(materialInput), [materialInput]);
+  const triplanarMaps = useTriplanarMaps(texture);
+  const materialResult = useMemo(() => {
+    const result = createMaterial(materialInput);
+    if (triplanarMaps) {
+      applyTriplanarTexture(result.material, triplanarMaps, {
+        scale: texture?.scale,
+        amount: texture?.amount,
+      });
+    }
+    return result;
+  }, [materialInput, triplanarMaps, texture?.scale, texture?.amount]);
 
   useEffect(() => {
     marchingCubes.scale.setScalar(1.2);
@@ -182,6 +240,7 @@ function MetaballMesh({
 function Scene({
   shape,
   material,
+  texture,
   background,
   interactive,
   autoRotate,
@@ -193,6 +252,7 @@ function Scene({
 }: {
   shape: ResolvedMetaballShape;
   material: MaterialInput;
+  texture?: Metaball3DTexture;
   background: THREE.ColorRepresentation;
   interactive: boolean;
   autoRotate: boolean;
@@ -217,6 +277,7 @@ function Scene({
       <MetaballMesh
         shape={shape}
         materialInput={material}
+        texture={texture}
         quality={quality}
         updateDebounceMs={updateDebounceMs}
         forwardedRef={forwardedRef}
@@ -242,6 +303,7 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
     preset,
     shape,
     material = 'wax',
+    texture,
     background = '#f0f2f5',
     interactive = true,
     renderContinuously = false,
@@ -282,6 +344,7 @@ export const Metaball3D = forwardRef<Metaball3DHandle, Metaball3DProps>(function
         <Scene
           shape={resolvedShape}
           material={material}
+          texture={texture}
           background={background}
           interactive={interactive}
           autoRotate={autoRotate}
