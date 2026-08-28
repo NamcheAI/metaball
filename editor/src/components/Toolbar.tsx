@@ -9,7 +9,11 @@ import { PresetGrid, Segmented } from './toolbar/segmented';
 import { SliderField } from './toolbar/slider-field';
 import { TexturePicker } from './toolbar/texture-picker';
 import { TopBar } from './toolbar/top-bar';
-import type { AIRenderParams, AIRenderResult } from '../../lib/ai-render-contract';
+import type {
+  AIRenderParams,
+  AIRenderResult,
+  AISuggestResult,
+} from '../../lib/ai-render-contract';
 import {
   Accordion,
   AccordionContent,
@@ -182,6 +186,7 @@ type Props = {
   onExportBlenderHandoff: () => void;
   canAIRender: boolean;
   onAIRender: (params: AIRenderParams) => Promise<AIRenderResult>;
+  onSuggestMetamorph: () => Promise<AISuggestResult>;
   refImageName: string | null;
   onAttachRefImageClick: () => void;
   onClearRefImage: () => void;
@@ -344,6 +349,7 @@ export default function Toolbar({
   onExportBlenderHandoff,
   canAIRender,
   onAIRender,
+  onSuggestMetamorph,
   refImageName,
   onAttachRefImageClick,
   onClearRefImage,
@@ -986,9 +992,11 @@ export default function Toolbar({
                   <AIRenderPanel
                     canRender={canAIRender}
                     referenceName={refImageName}
+                    textureSlug={textureSlug}
                     onAttachReference={onAttachRefImageClick}
                     onClearReference={onClearRefImage}
                     onRender={onAIRender}
+                    onSuggestMetamorph={onSuggestMetamorph}
                   />
                 </Section>
               )}

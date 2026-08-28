@@ -57,7 +57,8 @@ import { downloadJson, initialDocument, parseDocumentJson, saveDocument } from '
 import type { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { getLiveMarchingCubes, type Canvas3DHandle } from './lib/canvas3dHandle';
 import type { RefImageBytes } from './lib/exportBlenderHandoff';
-import { renderAIMaterial } from './lib/aiRender';
+import { fetchTextureReference, renderAIMaterial, suggestMetamorphParams } from './lib/aiRender';
+import { isTextureSlug, textureWebUrl } from './lib/texturePresets';
 import type { AIRenderParams, AIRenderResult } from '../lib/ai-render-contract';
 
 // Loaded on demand: keeps three.js / react-three-fiber out of the initial
@@ -550,12 +551,33 @@ export default function App() {
       throw new Error('The 3D canvas is not ready yet — wait a moment and try again.');
     }
 
+    // Metamorph mode with no manual upload: the selected surface texture is
+    // the material reference, streamed from the imagery CDN.
+    let materialReference = customRefImage;
+    if (!materialReference && params.metamorph && isTextureSlug(doc.textureSlug)) {
+      materialReference = await fetchTextureReference(
+        textureWebUrl(doc.textureSlug),
+        `${doc.textureSlug}.webp`,
+      );
+    }
+
     return renderAIMaterial({
       canvas,
       params,
-      materialReference: customRefImage,
+      materialReference,
       invalidate: handle?.invalidate,
     });
+  };
+
+  const doSuggestMetamorph = async () => {
+    if (!isTextureSlug(doc.textureSlug)) {
+      throw new Error('Select a surface texture first.');
+    }
+    const reference = await fetchTextureReference(
+      textureWebUrl(doc.textureSlug),
+      `${doc.textureSlug}.webp`,
+    );
+    return suggestMetamorphParams(reference);
   };
 
   const doImportJson = (json: string) => {
@@ -960,6 +982,7 @@ export default function App() {
           onExportBlenderHandoff={doExportBlenderHandoff}
           canAIRender={view === '3d'}
           onAIRender={doAIRender}
+          onSuggestMetamorph={doSuggestMetamorph}
           refImageName={customRefImage?.fileName ?? null}
           onAttachRefImageClick={() => refImageInputRef.current?.click()}
           onClearRefImage={() => setCustomRefImage(null)}

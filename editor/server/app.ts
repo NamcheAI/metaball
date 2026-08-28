@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleRenderRequest } from './render.js';
+import { handleSuggestRequest } from './suggest.js';
 import {
   createRenderRateLimiter,
   renderRateLimitBudget,
@@ -69,7 +70,7 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
       // Method validation (POST-only for render) lives in the handler
       // itself -- routing here only matches the path so that behavior
       // isn't duplicated.
-      if (pathname === '/api/render') {
+      if (pathname === '/api/render' || pathname === '/api/render/suggest') {
         const verdict = renderLimiter.take(renderRateLimitKey(req, trustProxy));
         if (!verdict.allowed) {
           res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
@@ -77,7 +78,11 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
           return;
         }
         const body = await readRequestBody(req);
-        await handleRenderRequest(res, req.method, body);
+        if (pathname === '/api/render/suggest') {
+          await handleSuggestRequest(res, req.method, body);
+        } else {
+          await handleRenderRequest(res, req.method, body);
+        }
         return;
       }
 

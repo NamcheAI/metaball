@@ -2,6 +2,7 @@ import type {
   AIRenderParams,
   AIRenderRequest,
   AIRenderResult,
+  AISuggestResult,
 } from '../../lib/ai-render-contract';
 import type { RefImageBytes } from './exportBlenderHandoff';
 
@@ -99,6 +100,37 @@ export async function renderAIMaterial(options: {
     body: JSON.stringify(body),
   });
   return parseResponse(response);
+}
+
+/** Fetch a CDN texture into the same byte shape the panel uses for uploads. */
+export async function fetchTextureReference(url: string, name: string): Promise<RefImageBytes> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('The surface texture could not be loaded.');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return { bytes, fileName: name };
+}
+
+/** First call of the metamorph flow: the model proposes the five template
+ *  parameters (and a material direction) from the texture photo. */
+export async function suggestMetamorphParams(reference: RefImageBytes): Promise<AISuggestResult> {
+  const materialImage = await optimizedReferenceDataUrl(reference);
+  const response = await fetch('/api/render/suggest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ materialImage }),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | (Partial<AISuggestResult> & { error?: unknown })
+    | null;
+  if (!response.ok) {
+    const message =
+      typeof payload?.error === 'string' ? payload.error : 'AI suggestion failed.';
+    throw new Error(message);
+  }
+  if (!payload?.params || typeof payload.materialDescription !== 'string') {
+    throw new Error('AI suggestion returned an invalid response.');
+  }
+  return payload as AISuggestResult;
 }
 
 export function downloadAIRender(result: AIRenderResult): void {

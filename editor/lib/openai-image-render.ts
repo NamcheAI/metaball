@@ -39,7 +39,7 @@ export type AIRenderProviderOptions = {
   fetchImpl?: FetchLike;
 };
 
-function parseImageDataUrl(value: unknown, label: string): ParsedImage {
+export function parseImageDataUrl(value: unknown, label: string): ParsedImage {
   if (typeof value !== 'string') throw new AIRenderError(400, `${label} is required.`);
   const match = DATA_URL_PATTERN.exec(value);
   if (!match) throw new AIRenderError(400, `${label} must be a PNG, JPEG or WebP data URL.`);

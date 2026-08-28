@@ -7,6 +7,31 @@ export type AIRenderSize = (typeof AI_RENDER_SIZES)[number];
 export const AI_RENDER_BACKGROUNDS = ['opaque', 'transparent', 'auto'] as const;
 export type AIRenderBackground = (typeof AI_RENDER_BACKGROUNDS)[number];
 
+/** The five knobs of the metamorph template, all 0-100 percent. */
+export type AIMetamorphParams = {
+  deformAmount: number;
+  nubDensity: number;
+  porosityAmount: number;
+  poreSize: number;
+  heightVariation: number;
+};
+
+export const DEFAULT_AI_METAMORPH_PARAMS: AIMetamorphParams = {
+  deformAmount: 25,
+  nubDensity: 40,
+  porosityAmount: 60,
+  poreSize: 20,
+  heightVariation: 50,
+};
+
+export const AI_METAMORPH_PARAM_KEYS = [
+  'deformAmount',
+  'nubDensity',
+  'porosityAmount',
+  'poreSize',
+  'heightVariation',
+] as const satisfies ReadonlyArray<keyof AIMetamorphParams>;
+
 export type AIRenderParams = {
   materialDescription: string;
   geometryFidelity: number;
@@ -16,6 +41,9 @@ export type AIRenderParams = {
   quality: AIRenderQuality;
   size: AIRenderSize;
   background: AIRenderBackground;
+  /** When set (and a material image is present), the metamorph template
+   *  replaces the standard material-study prompt. */
+  metamorph?: AIMetamorphParams | null;
 };
 
 export type AIRenderRequest = {
@@ -66,9 +94,20 @@ function enumValue<T extends readonly string[]>(
   return typeof value === 'string' && allowed.includes(value) ? (value as T[number]) : fallback;
 }
 
+export function normalizeAIMetamorphParams(value: unknown): AIMetamorphParams | null {
+  if (!value || typeof value !== 'object') return null;
+  const input = value as Record<string, unknown>;
+  const result = {} as AIMetamorphParams;
+  for (const key of AI_METAMORPH_PARAM_KEYS) {
+    result[key] = clampPercent(input[key], DEFAULT_AI_METAMORPH_PARAMS[key]);
+  }
+  return result;
+}
+
 export function normalizeAIRenderParams(value: unknown): AIRenderParams {
   const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   return {
+    metamorph: normalizeAIMetamorphParams(input.metamorph),
     materialDescription: normalizeText(
       input.materialDescription,
       DEFAULT_AI_RENDER_PARAMS.materialDescription,
@@ -122,7 +161,14 @@ function fidelityInstruction(value: number): string {
   return 'Keep the overall object identity and camera, but allow expressive material-driven deformation.';
 }
 
+/** The tuned Weave template, verbatim, with the five variables filled as
+ *  percentages. Requires a material reference image (Image 2). */
+export function buildAIMetamorphPrompt(params: AIMetamorphParams): string {
+  return `Apply the surface texture, material, color palette, and lighting from the second reference image onto the object in the first image. Keep the object's overall shape, proportions, and camera angle recognizable. Apply surface deformation at ${params.deformAmount}% intensity — at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the irregular structure of the reference material. Grow ${params.nubDensity}% organic, finger-like nubs and tendrils out from the surface, as if the material itself is dripping or budding outward. Thread ${params.porosityAmount}% porosity through the entire structure — including through the nubs and tendrils themselves, not just the flat surface — with ${params.poreSize}% holes and cavities running organically through the material. Vary the surface relief at ${params.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the irregular topology of the reference. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish. Match the background and lighting style from the second reference image. Photorealistic result. One object only. No text, captions, watermark, frame, pedestal, hands or people.`;
+}
+
 export function buildAIRenderPrompt(params: AIRenderParams, hasMaterialImage: boolean): string {
+  if (params.metamorph && hasMaterialImage) return buildAIMetamorphPrompt(params.metamorph);
   const materialReference = hasMaterialImage
     ? 'Image 2 is the material reference. Transfer its material family, palette and microstructure onto Image 1; do not copy its object, composition or background.'
     : 'There is no second image. Derive the material only from the written material direction.';
@@ -157,3 +203,14 @@ ${backgroundInstruction}
 OUTPUT CONSTRAINTS
 One object only. No text, captions, watermark, frame, pedestal, hands or people. Render as a polished material/industrial-design photograph with coherent highlights, contact shadow when appropriate and physically plausible depth.`;
 }
+
+export type AISuggestRequest = {
+  /** Material photo as a data URL; the model reads it and proposes settings. */
+  materialImage: string;
+};
+
+export type AISuggestResult = {
+  params: AIMetamorphParams;
+  materialDescription: string;
+  model: string;
+};
