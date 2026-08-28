@@ -1,7 +1,24 @@
 export const AI_RENDER_QUALITIES = ['low', 'medium', 'high'] as const;
 export type AIRenderQuality = (typeof AI_RENDER_QUALITIES)[number];
 
-export const AI_RENDER_SIZES = ['1024x1024', '1536x1024', '1024x1536'] as const;
+// gpt-image-2 renders these natively -- no upscaling pass. Its constraints:
+// both edges divisible by 16, long:short ratio <= 3:1, and 655,360 <= total
+// pixels <= 8,294,400 (so 2880x2880 and 3840x2160 both sit exactly on the
+// ceiling). `assertRenderSizesAreValid` in the tests pins every entry to
+// those rules, so a hand-added size fails here rather than at the provider.
+export const AI_RENDER_SIZES = [
+  '1024x1024',
+  '1536x1024',
+  '1024x1536',
+  '2048x2048',
+  '2880x2880',
+  '3840x2160',
+  '2160x3840',
+] as const;
+
+export const GPT_IMAGE_MAX_EDGE = 3840;
+export const GPT_IMAGE_MIN_PIXELS = 655_360;
+export const GPT_IMAGE_MAX_PIXELS = 8_294_400;
 export type AIRenderSize = (typeof AI_RENDER_SIZES)[number];
 
 export const AI_RENDER_BACKGROUNDS = ['opaque', 'transparent', 'auto'] as const;
