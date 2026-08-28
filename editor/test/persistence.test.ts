@@ -93,5 +93,32 @@ test('version 10 migrates the full-bleed Classic graph into the shared inner fra
   assert.equal(doc.fullGrid, false);
   assert.equal(doc.rasterEnabled, false);
   assert.ok(doc.nodes.every(({ r, c }) => r >= 1 && r <= 3 && c >= 1 && c <= 3));
-  assert.equal(DOCUMENT_VERSION, 11);
+  assert.equal(DOCUMENT_VERSION, 12);
+});
+
+test('texture fields normalize: valid slug kept, junk dropped, ranges clamped', () => {
+  const base = initialDocument();
+  const good = normalizeDocument({
+    ...base,
+    textureSlug: 'ig-1031312152456670682-168658-0',
+    textureScale: 99,
+    textureAmount: -1,
+    version: 12,
+  });
+  assert.equal(good.textureSlug, 'ig-1031312152456670682-168658-0');
+  assert.equal(good.textureScale, 6);
+  assert.equal(good.textureAmount, 0);
+
+  const junk = normalizeDocument({ ...base, textureSlug: 'not-a-slug', version: 12 });
+  assert.equal(junk.textureSlug, null);
+
+  // a senses slug has no tile derivative and is not a valid surface texture
+  const senses = normalizeDocument({ ...base, textureSlug: 'ig-368349807-168658-0', version: 12 });
+  assert.equal(senses.textureSlug, null);
+
+  // pre-texture documents (v11) get the defaults
+  const legacy = normalizeDocument({ ...base, version: 11 } as never);
+  assert.equal(legacy.textureSlug, null);
+  assert.equal(legacy.textureScale, 1.6);
+  assert.equal(legacy.textureAmount, 1);
 });

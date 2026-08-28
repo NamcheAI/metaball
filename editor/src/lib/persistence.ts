@@ -34,6 +34,8 @@ import {
   type Size,
   type StoredDocument,
   type Theme,
+  clampTextureScale,
+  clampTextureAmount,
 } from './model';
 import {
   DEFAULT_LIQUID_PRESET,
@@ -44,6 +46,7 @@ import {
 } from './liquidPresets';
 import { normalizeLiquidBackdropId } from './liquidBackdrops';
 import { getMaterialPreset } from './materialPresets';
+import { isTextureSlug } from './texturePresets';
 
 export const STORAGE_KEY = 'metaball-editor-document';
 
@@ -278,6 +281,13 @@ export function normalizeDocument(input: unknown): Document {
       ),
     ),
     materialPreset,
+    textureSlug: isTextureSlug(input.textureSlug) ? input.textureSlug : null,
+    textureScale: isFiniteNumber(input.textureScale)
+      ? clampTextureScale(input.textureScale)
+      : base.textureScale,
+    textureAmount: isFiniteNumber(input.textureAmount)
+      ? clampTextureAmount(input.textureAmount)
+      : base.textureAmount,
     lookMode,
     liquidPreset: liquidPreset || DEFAULT_LIQUID_PRESET,
     liquidParams,

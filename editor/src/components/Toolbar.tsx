@@ -7,6 +7,7 @@ import { Disclosure } from './toolbar/disclosure';
 import { ColorField, GroupLabel, Hint, SelectField, Subsection, SwitchField } from './toolbar/fields';
 import { PresetGrid, Segmented } from './toolbar/segmented';
 import { SliderField } from './toolbar/slider-field';
+import { TexturePicker } from './toolbar/texture-picker';
 import { TopBar } from './toolbar/top-bar';
 import type { AIRenderParams, AIRenderResult } from '../../lib/ai-render-contract';
 import {
@@ -57,6 +58,8 @@ import {
   type Mode,
   type PngScale,
   type Size,
+  TEXTURE_SCALE_MIN,
+  TEXTURE_SCALE_MAX,
   type SurfaceSamplerMode,
   type Theme,
   type LookMode,
@@ -77,6 +80,12 @@ type Props = {
   onViewChange: (view: ViewMode) => void;
   materialPreset: string;
   onMaterialPresetChange: (id: string) => void;
+  textureSlug: string | null;
+  onTextureSlugChange: (slug: string | null) => void;
+  textureScale: number;
+  onTextureScaleChange: (value: number) => void;
+  textureAmount: number;
+  onTextureAmountChange: (value: number) => void;
   lookMode: LookMode;
   onLookModeChange: (mode: LookMode) => void;
   liquidPreset: string;
@@ -233,6 +242,12 @@ export default function Toolbar({
   onViewChange,
   materialPreset,
   onMaterialPresetChange,
+  textureSlug,
+  onTextureSlugChange,
+  textureScale,
+  onTextureScaleChange,
+  textureAmount,
+  onTextureAmountChange,
   lookMode,
   onLookModeChange,
   liquidPreset,
@@ -594,6 +609,30 @@ export default function Toolbar({
                       <Hint>
                         {MATERIAL_PRESETS.find((p) => p.id === materialPreset)?.hint ?? ''}
                       </Hint>
+                      <TexturePicker value={textureSlug} onValueChange={onTextureSlugChange} />
+                      {textureSlug !== null && (
+                        <>
+                          <SliderField
+                            label="Texture scale"
+                            value={textureScale}
+                            min={TEXTURE_SCALE_MIN}
+                            max={TEXTURE_SCALE_MAX}
+                            step={0.1}
+                            onChange={onTextureScaleChange}
+                          />
+                          <SliderField
+                            label="Texture amount"
+                            value={textureAmount}
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            onChange={onTextureAmountChange}
+                          />
+                          <Hint>
+                            Curated imagery, projected triplanar — pairs well with clay and rock.
+                          </Hint>
+                        </>
+                      )}
                     </>
                   )}
 

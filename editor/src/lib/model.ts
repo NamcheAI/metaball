@@ -221,8 +221,23 @@ export function normalizeSurfaceSamplerMode(value: unknown): SurfaceSamplerMode 
     : SURFACE_SAMPLER_MODE;
 }
 
+export const TEXTURE_SCALE_MIN = 0.4;
+export const TEXTURE_SCALE_MAX = 6;
+export const TEXTURE_SCALE = 1.6;
+export const TEXTURE_AMOUNT = 1;
+
+export const clampTextureScale = (value: number): number =>
+  Math.min(TEXTURE_SCALE_MAX, Math.max(TEXTURE_SCALE_MIN, value));
+
+export const clampTextureAmount = (value: number): number =>
+  Math.min(1, Math.max(0, value));
+
 export type Document = EditorDoc & {
   materialPreset: string;
+  /** Curated imagery slug for the triplanar surface texture; null = off. */
+  textureSlug: string | null;
+  textureScale: number;
+  textureAmount: number;
   lookMode: LookMode;
   liquidPreset: string;
   liquidParams: LiquidParams;
@@ -236,7 +251,7 @@ export type Document = EditorDoc & {
   surfaceSamplerAnimate: boolean;
 };
 
-export const DOCUMENT_VERSION = 11;
+export const DOCUMENT_VERSION = 12;
 export type StoredDocument = Document & { version: number };
 
 export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []): Document {
@@ -256,6 +271,9 @@ export function createDefaultDocument(nodes: GridNode[] = [], edges: Edge[] = []
     flattenEpsilon: FLATTEN_EPSILON,
     flattenResolution: FLATTEN_RESOLUTION,
     materialPreset: DEFAULT_MATERIAL_PRESET,
+    textureSlug: null,
+    textureScale: TEXTURE_SCALE,
+    textureAmount: TEXTURE_AMOUNT,
     lookMode: 'material',
     liquidPreset: DEFAULT_LIQUID_PRESET,
     liquidParams: defaultLiquidParams(),
