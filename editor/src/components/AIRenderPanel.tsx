@@ -109,8 +109,8 @@ export default function AIRenderPanel({
           {params.metamorph && (
             <>
               <Hint>
-                Image 2 is the selected texture; the metamorph template lets the material reshape
-                the form — deformation, budding nubs, porosity — instead of only skinning it.
+                Image 2 is the surface texture selected above — nothing to upload. The metamorph
+                template lets that material reshape the form: deformation, budding nubs, porosity.
               </Hint>
               <Button
                 variant="outline"
@@ -205,17 +205,23 @@ export default function AIRenderPanel({
         }))}
       />
 
-      <Hint>
-        {referenceName ? `Material reference: ${referenceName}` : 'No material image attached.'}
-      </Hint>
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" size="sm" onClick={onAttachReference}>
-          {referenceName ? 'Replace reference' : 'Attach material image'}
-        </Button>
-        <Button variant="outline" size="sm" disabled={!referenceName} onClick={onClearReference}>
-          Clear
-        </Button>
-      </div>
+      {params.metamorph && textureSlug ? (
+        <Hint>Material reference: surface texture {textureSlug} (selected above).</Hint>
+      ) : (
+        <>
+          <Hint>
+            {referenceName ? `Material reference: ${referenceName}` : 'No material image attached.'}
+          </Hint>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" size="sm" onClick={onAttachReference}>
+              {referenceName ? 'Replace reference' : 'Attach material image'}
+            </Button>
+            <Button variant="outline" size="sm" disabled={!referenceName} onClick={onClearReference}>
+              Clear
+            </Button>
+          </div>
+        </>
+      )}
 
       <Button
         className="w-full"
