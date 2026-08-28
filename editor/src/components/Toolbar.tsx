@@ -187,6 +187,7 @@ type Props = {
   canAIRender: boolean;
   onAIRender: (params: AIRenderParams) => Promise<AIRenderResult>;
   onSuggestMetamorph: () => Promise<AISuggestResult>;
+  onExportRenderBundle: (result: AIRenderResult, params: AIRenderParams) => void;
   refImageName: string | null;
   onAttachRefImageClick: () => void;
   onClearRefImage: () => void;
@@ -350,6 +351,7 @@ export default function Toolbar({
   canAIRender,
   onAIRender,
   onSuggestMetamorph,
+  onExportRenderBundle,
   refImageName,
   onAttachRefImageClick,
   onClearRefImage,
@@ -997,6 +999,7 @@ export default function Toolbar({
                     onClearReference={onClearRefImage}
                     onRender={onAIRender}
                     onSuggestMetamorph={onSuggestMetamorph}
+                    onExportBundle={onExportRenderBundle}
                   />
                 </Section>
               )}

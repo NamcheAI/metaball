@@ -27,6 +27,7 @@ type Props = {
   onClearReference: () => void;
   onRender: (params: AIRenderParams) => Promise<AIRenderResult>;
   onSuggestMetamorph: () => Promise<AISuggestResult>;
+  onExportBundle: (result: AIRenderResult, params: AIRenderParams) => void;
 };
 
 // The Studio's 3D preview is square, so the square sizes are the useful
@@ -54,6 +55,7 @@ export default function AIRenderPanel({
   onClearReference,
   onRender,
   onSuggestMetamorph,
+  onExportBundle,
 }: Props) {
   const [params, setParams] = useState<AIRenderParams>(DEFAULT_AI_RENDER_PARAMS);
   const [status, setStatus] = useState<'idle' | 'rendering' | 'done' | 'error'>('idle');
@@ -267,9 +269,14 @@ export default function AIRenderPanel({
             <span className="truncate font-mono text-[0.625rem] text-muted-foreground">
               {result.model}
             </span>
-            <Button variant="outline" size="xs" onClick={() => downloadAIRender(result)}>
-              Download PNG
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="xs" onClick={() => downloadAIRender(result)}>
+                PNG
+              </Button>
+              <Button variant="outline" size="xs" onClick={() => onExportBundle(result, params)}>
+                Bundle
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       )}
