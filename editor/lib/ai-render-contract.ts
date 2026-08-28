@@ -161,14 +161,31 @@ function fidelityInstruction(value: number): string {
   return 'Keep the overall object identity and camera, but allow expressive material-driven deformation.';
 }
 
-/** The tuned Weave template, verbatim, with the five variables filled as
- *  percentages. Requires a material reference image (Image 2). */
-export function buildAIMetamorphPrompt(params: AIMetamorphParams): string {
-  return `Apply the surface texture, material, color palette, and lighting from the second reference image onto the object in the first image. Keep the object's overall shape, proportions, and camera angle recognizable. Apply surface deformation at ${params.deformAmount}% intensity — at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the irregular structure of the reference material. Grow ${params.nubDensity}% organic, finger-like nubs and tendrils out from the surface, as if the material itself is dripping or budding outward. Thread ${params.porosityAmount}% porosity through the entire structure — including through the nubs and tendrils themselves, not just the flat surface — with ${params.poreSize}% holes and cavities running organically through the material. Vary the surface relief at ${params.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the irregular topology of the reference. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish. Match the background and lighting style from the second reference image. Photorealistic result. One object only. No text, captions, watermark, frame, pedestal, hands or people.`;
+/** The tuned metamorph template with the five variables filled as
+ *  percentages. Material and structure come from the reference (Image 2);
+ *  camera, position, lighting and background stay owned by the Studio —
+ *  the reference photo's scene must never leak into the render. */
+export function buildAIMetamorphPrompt(params: AIRenderParams): string {
+  const m = params.metamorph ?? DEFAULT_AI_METAMORPH_PARAMS;
+  const backgroundInstruction =
+    params.background === 'transparent'
+      ? 'Isolate the object on a fully transparent background. Add no scenery or checkerboard.'
+      : params.background === 'opaque'
+        ? params.backgroundDescription
+        : `Choose a background that supports the object. Direction: ${params.backgroundDescription}`;
+  return `Apply the surface texture, material, color palette, and finish from the second reference image onto the object in the first image. Use the second image ONLY as a material sample: ignore its scene, objects, background, perspective and lighting entirely. Keep the camera angle, framing, scale and position of the object exactly as in the first image. Apply surface deformation at ${m.deformAmount}% intensity — at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the irregular structure of the reference material. Grow ${m.nubDensity}% organic, finger-like nubs and tendrils out from the surface, as if the material itself is dripping or budding outward. Thread ${m.porosityAmount}% porosity through the entire structure — including through the nubs and tendrils themselves, not just the flat surface — with ${m.poreSize}% holes and cavities running organically through the material. Vary the surface relief at ${m.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the irregular topology of the reference. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish.
+
+LIGHTING
+${params.lightingDescription}
+
+BACKGROUND
+${backgroundInstruction}
+
+Photorealistic result. One object only. No table, floor, scenery or props from the reference image. No text, captions, watermark, frame, pedestal, hands or people.`;
 }
 
 export function buildAIRenderPrompt(params: AIRenderParams, hasMaterialImage: boolean): string {
-  if (params.metamorph && hasMaterialImage) return buildAIMetamorphPrompt(params.metamorph);
+  if (params.metamorph && hasMaterialImage) return buildAIMetamorphPrompt(params);
   const materialReference = hasMaterialImage
     ? 'Image 2 is the material reference. Transfer its material family, palette and microstructure onto Image 1; do not copy its object, composition or background.'
     : 'There is no second image. Derive the material only from the written material direction.';
