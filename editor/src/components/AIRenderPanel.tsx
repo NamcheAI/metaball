@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Hint, SelectField } from './toolbar/fields';
+import { Hint, SelectField, SwitchField } from './toolbar/fields';
 import { SliderField } from './toolbar/slider-field';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -10,34 +10,73 @@ import {
   AI_RENDER_BACKGROUNDS,
   AI_RENDER_QUALITIES,
   AI_RENDER_SIZES,
+  DEFAULT_AI_METAMORPH_PARAMS,
   DEFAULT_AI_RENDER_PARAMS,
+  type AIMetamorphParams,
   type AIRenderParams,
   type AIRenderResult,
+  type AISuggestResult,
 } from '../../lib/ai-render-contract';
 import { downloadAIRender } from '../lib/aiRender';
 
 type Props = {
   canRender: boolean;
   referenceName: string | null;
+  textureSlug: string | null;
   onAttachReference: () => void;
   onClearReference: () => void;
   onRender: (params: AIRenderParams) => Promise<AIRenderResult>;
+  onSuggestMetamorph: () => Promise<AISuggestResult>;
 };
+
+const METAMORPH_SLIDERS: Array<{ key: keyof AIMetamorphParams; label: string }> = [
+  { key: 'deformAmount', label: 'Deform amount' },
+  { key: 'nubDensity', label: 'Nub density' },
+  { key: 'porosityAmount', label: 'Porosity' },
+  { key: 'poreSize', label: 'Pore size' },
+  { key: 'heightVariation', label: 'Height variation' },
+];
 
 export default function AIRenderPanel({
   canRender,
   referenceName,
+  textureSlug,
   onAttachReference,
   onClearReference,
   onRender,
+  onSuggestMetamorph,
 }: Props) {
   const [params, setParams] = useState<AIRenderParams>(DEFAULT_AI_RENDER_PARAMS);
   const [status, setStatus] = useState<'idle' | 'rendering' | 'done' | 'error'>('idle');
+  const [suggesting, setSuggesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AIRenderResult | null>(null);
 
   const patch = <K extends keyof AIRenderParams>(key: K, value: AIRenderParams[K]) =>
     setParams((current) => ({ ...current, [key]: value }));
+
+  const patchMetamorph = (key: keyof AIMetamorphParams, value: number) =>
+    setParams((current) => ({
+      ...current,
+      metamorph: { ...(current.metamorph ?? DEFAULT_AI_METAMORPH_PARAMS), [key]: value },
+    }));
+
+  const suggest = async () => {
+    setSuggesting(true);
+    setError(null);
+    try {
+      const suggestion = await onSuggestMetamorph();
+      setParams((current) => ({
+        ...current,
+        metamorph: suggestion.params,
+        materialDescription: suggestion.materialDescription,
+      }));
+    } catch (suggestError) {
+      setError(suggestError instanceof Error ? suggestError.message : 'AI suggestion failed.');
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const render = async () => {
     setStatus('rendering');
@@ -58,6 +97,44 @@ export default function AIRenderPanel({
         Image 1 locks the current shape and camera. An optional Image 2 supplies any material —
         nacre, coral, moss, grass, fur or something entirely new.
       </Hint>
+
+
+      {textureSlug && (
+        <div className="flex flex-col gap-3 rounded-md border border-border p-3">
+          <SwitchField
+            label="Metamorph with surface texture"
+            checked={params.metamorph != null}
+            onCheckedChange={(on) => patch('metamorph', on ? DEFAULT_AI_METAMORPH_PARAMS : null)}
+          />
+          {params.metamorph && (
+            <>
+              <Hint>
+                Image 2 is the selected texture; the metamorph template lets the material reshape
+                the form — deformation, budding nubs, porosity — instead of only skinning it.
+              </Hint>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={suggesting}
+                onClick={() => void suggest()}
+              >
+                {suggesting ? 'Analyzing texture…' : 'Suggest parameters from texture'}
+              </Button>
+              {METAMORPH_SLIDERS.map(({ key, label }) => (
+                <SliderField
+                  key={key}
+                  label={label}
+                  value={params.metamorph?.[key] ?? DEFAULT_AI_METAMORPH_PARAMS[key]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onChange={(value) => patchMetamorph(key, value)}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-xs font-normal text-muted-foreground">Material direction</Label>

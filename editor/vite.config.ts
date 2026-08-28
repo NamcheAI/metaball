@@ -3,8 +3,9 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { AIRenderRequest } from './lib/ai-render-contract.js'
+import type { AIRenderRequest, AISuggestRequest } from './lib/ai-render-contract.js'
 import { AIRenderError, runOpenAIImageRender } from './lib/openai-image-render.js'
+import { runOpenAIMaterialSuggest } from './lib/openai-material-suggest.js'
 
 const DEV_RENDER_BODY_LIMIT = 12 * 1024 * 1024
 
@@ -31,7 +32,7 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body))
 }
 
-function localAIRenderApi(options: { apiKey?: string; model?: string }): Plugin {
+function localAIRenderApi(options: { apiKey?: string; model?: string; suggestModel?: string }): Plugin {
   return {
     name: 'namche-local-ai-render-api',
     configureServer(server) {
@@ -42,8 +43,21 @@ function localAIRenderApi(options: { apiKey?: string; model?: string }): Plugin 
           return
         }
         try {
-          const body = (await readJsonBody(request)) as AIRenderRequest
-          sendJson(response, 200, await runOpenAIImageRender(body, options))
+          const body = await readJsonBody(request)
+          // The middleware mounts on the /api/render prefix; request.url is
+          // the remainder, so the suggest sub-route arrives as '/suggest'.
+          if ((request.url ?? '').startsWith('/suggest')) {
+            sendJson(
+              response,
+              200,
+              await runOpenAIMaterialSuggest(body as AISuggestRequest, {
+                apiKey: options.apiKey,
+                model: options.suggestModel,
+              }),
+            )
+          } else {
+            sendJson(response, 200, await runOpenAIImageRender(body as AIRenderRequest, options))
+          }
         } catch (error) {
           if (error instanceof AIRenderError) {
             sendJson(response, error.status, { error: error.message })
@@ -64,7 +78,11 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      localAIRenderApi({ apiKey: env.OPENAI_API_KEY, model: env.OPENAI_IMAGE_MODEL }),
+      localAIRenderApi({
+        apiKey: env.OPENAI_API_KEY,
+        model: env.OPENAI_IMAGE_MODEL,
+        suggestModel: env.OPENAI_SUGGEST_MODEL,
+      }),
     ],
     resolve: {
       alias: {

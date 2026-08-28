@@ -24,6 +24,10 @@ export function textureThumbUrl(slug: ImagerySlug): string {
   return url(slug, 'thumb');
 }
 
+export function textureWebUrl(slug: ImagerySlug): string {
+  return url(slug, 'web');
+}
+
 export function textureForSlug(
   slug: string | null,
   scale: number,
