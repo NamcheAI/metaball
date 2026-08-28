@@ -59,6 +59,7 @@ import { getLiveMarchingCubes, type Canvas3DHandle } from './lib/canvas3dHandle'
 import type { RefImageBytes } from './lib/exportBlenderHandoff';
 import { fetchTextureReference, renderAIMaterial, suggestMetamorphParams } from './lib/aiRender';
 import { isTextureSlug, textureWebUrl } from './lib/texturePresets';
+import { exportRenderBundle } from './lib/renderBundle';
 import type { AIRenderParams, AIRenderResult } from '../lib/ai-render-contract';
 
 // Loaded on demand: keeps three.js / react-three-fiber out of the initial
@@ -985,6 +986,15 @@ export default function App() {
           canAIRender={view === '3d'}
           onAIRender={doAIRender}
           onSuggestMetamorph={doSuggestMetamorph}
+          onExportRenderBundle={(result: AIRenderResult, params: AIRenderParams) =>
+            exportRenderBundle({
+              result,
+              params,
+              doc,
+              textureSlug: doc.textureSlug,
+              referenceName: customRefImage?.fileName ?? null,
+            })
+          }
           refImageName={customRefImage?.fileName ?? null}
           onAttachRefImageClick={() => refImageInputRef.current?.click()}
           onClearRefImage={() => setCustomRefImage(null)}
