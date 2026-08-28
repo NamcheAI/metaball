@@ -7,6 +7,11 @@ import type {
 import type { RefImageBytes } from './exportBlenderHandoff';
 
 const MAX_REFERENCE_SIDE = 1_536;
+const MAX_SHAPE_SIDE = 1_280;
+// Stay comfortably under the server's 4 MB per-image cap and the edge's
+// body limit; beyond this a JPEG re-encode loses nothing that matters for
+// an opaque studio capture.
+const MAX_SHAPE_PNG_BYTES = 2_500_000;
 
 function readBlobAsDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -51,6 +56,28 @@ async function optimizedReferenceDataUrl(reference: RefImageBytes): Promise<stri
   return canvas.toDataURL('image/jpeg', 0.9);
 }
 
+function captureShapeDataUrl(source: HTMLCanvasElement): string {
+  const scale = Math.min(1, MAX_SHAPE_SIDE / Math.max(source.width, source.height));
+  let canvas = source;
+  if (scale < 1) {
+    const scaled = document.createElement('canvas');
+    scaled.width = Math.max(1, Math.round(source.width * scale));
+    scaled.height = Math.max(1, Math.round(source.height * scale));
+    const context = scaled.getContext('2d');
+    if (context) {
+      context.drawImage(source, 0, 0, scaled.width, scaled.height);
+      canvas = scaled;
+    }
+  }
+  const png = canvas.toDataURL('image/png');
+  // Data-URL length ~= bytes * 4/3; re-encode as JPEG when the PNG would
+  // push the request body toward the server's per-image limit.
+  if (png.length > (MAX_SHAPE_PNG_BYTES * 4) / 3) {
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+  return png;
+}
+
 async function parseResponse(response: Response): Promise<AIRenderResult> {
   const payload = (await response.json().catch(() => null)) as
     | (Partial<AIRenderResult> & { error?: unknown })
@@ -81,7 +108,7 @@ export async function renderAIMaterial(options: {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   let shapeImage: string;
   try {
-    shapeImage = options.canvas.toDataURL('image/png');
+    shapeImage = captureShapeDataUrl(options.canvas);
   } catch {
     throw new Error('The 3D preview could not be captured. Reload the view and try again.');
   }

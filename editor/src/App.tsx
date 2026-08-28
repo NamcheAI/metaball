@@ -551,10 +551,12 @@ export default function App() {
       throw new Error('The 3D canvas is not ready yet — wait a moment and try again.');
     }
 
-    // Metamorph mode with no manual upload: the selected surface texture is
-    // the material reference, streamed from the imagery CDN.
+    // In metamorph mode the selected surface texture IS the material
+    // reference — exactly the pattern picked in the dialog above, streamed
+    // from the imagery CDN; a manually attached image only applies to the
+    // classic material-study prompt.
     let materialReference = customRefImage;
-    if (!materialReference && params.metamorph && isTextureSlug(doc.textureSlug)) {
+    if (params.metamorph && isTextureSlug(doc.textureSlug)) {
       materialReference = await fetchTextureReference(
         textureWebUrl(doc.textureSlug),
         `${doc.textureSlug}.webp`,
