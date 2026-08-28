@@ -29,6 +29,15 @@ type Props = {
   onSuggestMetamorph: () => Promise<AISuggestResult>;
 };
 
+// The Studio's 3D preview is square, so the square sizes are the useful
+// high-res targets; 2880 and 3840 are gpt-image-2's ceiling.
+const SIZE_LABELS: Record<string, string> = {
+  '2048x2048': '2048 × 2048',
+  '2880x2880': '2880 × 2880 (max)',
+  '3840x2160': '3840 × 2160 (4K)',
+  '2160x3840': '2160 × 3840 (4K)',
+};
+
 const METAMORPH_SLIDERS: Array<{ key: keyof AIMetamorphParams; label: string }> = [
   { key: 'deformAmount', label: 'Deform amount' },
   { key: 'nubDensity', label: 'Nub density' },
@@ -193,8 +202,16 @@ export default function AIRenderPanel({
         label="Size"
         value={params.size}
         onValueChange={(value) => patch('size', value as AIRenderParams['size'])}
-        options={AI_RENDER_SIZES.map((size) => ({ value: size, label: size.replace('x', ' × ') }))}
+        options={AI_RENDER_SIZES.map((size) => ({
+          value: size,
+          label: SIZE_LABELS[size] ?? size.replace('x', ' × '),
+        }))}
       />
+      <Hint>
+        Sizes above 1536px are rendered natively at that resolution — slower and
+        more expensive per render, no upscaling pass. Pair with quality “high”.
+      </Hint>
+
       <SelectField
         label="Canvas"
         value={params.background}

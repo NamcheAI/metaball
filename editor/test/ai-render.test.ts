@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  AI_RENDER_SIZES,
   DEFAULT_AI_METAMORPH_PARAMS,
   DEFAULT_AI_RENDER_PARAMS,
+  GPT_IMAGE_MAX_EDGE,
+  GPT_IMAGE_MAX_PIXELS,
+  GPT_IMAGE_MIN_PIXELS,
   buildAIRenderPrompt,
   normalizeAIMetamorphParams,
   normalizeAIRenderParams,
@@ -197,4 +201,23 @@ test('suggest adapter fails closed on unusable provider output and missing key',
   } finally {
     if (previous !== undefined) process.env.OPENAI_API_KEY = previous;
   }
+});
+
+test('every offered render size satisfies gpt-image-2 constraints', () => {
+  for (const size of AI_RENDER_SIZES) {
+    const [width, height] = size.split('x').map(Number) as [number, number];
+    const pixels = width * height;
+    const ratio = Math.max(width, height) / Math.min(width, height);
+    assert.equal(width % 16, 0, `${size}: width must be divisible by 16`);
+    assert.equal(height % 16, 0, `${size}: height must be divisible by 16`);
+    assert.ok(Math.max(width, height) <= GPT_IMAGE_MAX_EDGE, `${size}: edge over ${GPT_IMAGE_MAX_EDGE}`);
+    assert.ok(ratio <= 3, `${size}: aspect ratio over 3:1`);
+    assert.ok(pixels >= GPT_IMAGE_MIN_PIXELS, `${size}: under the pixel floor`);
+    assert.ok(pixels <= GPT_IMAGE_MAX_PIXELS, `${size}: over the pixel ceiling`);
+  }
+  // The high-res targets are actually reachable through normalization.
+  assert.equal(normalizeAIRenderParams({ size: '2880x2880' }).size, '2880x2880');
+  assert.equal(normalizeAIRenderParams({ size: '3840x2160' }).size, '3840x2160');
+  // and an unsupported one still falls back rather than reaching the provider
+  assert.equal(normalizeAIRenderParams({ size: '7680x4320' }).size, DEFAULT_AI_RENDER_PARAMS.size);
 });
