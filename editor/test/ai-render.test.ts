@@ -125,6 +125,14 @@ test('metamorph template takes over when set with a material image, not without 
   assert.match(withImage, /with 2% holes/);
   assert.match(withImage, /relief at 70%/);
   assert.match(withImage, /No text, captions, watermark/);
+  // the reference photo is a material sample, never a scene
+  assert.match(withImage, /ignore its scene, objects, background, perspective and lighting/);
+  assert.match(withImage, /camera angle, framing, scale and position of the object exactly as in the first image/);
+  assert.match(withImage, new RegExp(DEFAULT_AI_RENDER_PARAMS.lightingDescription.slice(0, 30)));
+  assert.match(withImage, new RegExp(DEFAULT_AI_RENDER_PARAMS.backgroundDescription.slice(0, 20)));
+  assert.doesNotMatch(withImage, /background and lighting style from the second/);
+  const transparent = buildAIRenderPrompt({ ...params, background: 'transparent' }, true);
+  assert.match(transparent, /fully transparent background/);
   // without a material reference the standard prompt still applies
   const withoutImage = buildAIRenderPrompt(params, false);
   assert.match(withoutImage, /Image 1 is the canonical shape/);
