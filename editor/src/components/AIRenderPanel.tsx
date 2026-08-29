@@ -7,7 +7,6 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  AI_RENDER_BACKGROUNDS,
   AI_RENDER_QUALITIES,
   AI_RENDER_SIZES,
   DEFAULT_AI_METAMORPH_PARAMS,
@@ -191,26 +190,6 @@ export default function AIRenderPanel({
         onChange={(value) => patch('materialInfluence', value)}
       />
 
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-xs font-normal text-muted-foreground">Lighting</Label>
-        <Textarea
-          rows={2}
-          className="min-h-14 font-mono text-xs"
-          value={params.lightingDescription}
-          onChange={(event) => patch('lightingDescription', event.target.value)}
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-xs font-normal text-muted-foreground">Background</Label>
-        <Textarea
-          rows={2}
-          className="min-h-14 font-mono text-xs"
-          disabled={params.background === 'transparent'}
-          value={params.backgroundDescription}
-          onChange={(event) => patch('backgroundDescription', event.target.value)}
-        />
-      </div>
-
       <SelectField
         label="Quality"
         value={params.quality}
@@ -230,16 +209,6 @@ export default function AIRenderPanel({
         Sizes above 1536px are rendered natively at that resolution — slower and
         more expensive per render, no upscaling pass. Pair with quality “high”.
       </Hint>
-
-      <SelectField
-        label="Canvas"
-        value={params.background}
-        onValueChange={(value) => patch('background', value as AIRenderParams['background'])}
-        options={AI_RENDER_BACKGROUNDS.map((background) => ({
-          value: background,
-          label: background,
-        }))}
-      />
 
       {params.metamorph && textureSlug ? (
         <Hint>Material reference: surface texture {textureSlug} (selected above).</Hint>

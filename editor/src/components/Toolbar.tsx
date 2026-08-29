@@ -7,8 +7,10 @@ import { Disclosure } from './toolbar/disclosure';
 import { ColorField, GroupLabel, Hint, SelectField, Subsection, SwitchField } from './toolbar/fields';
 import { PresetGrid, Segmented } from './toolbar/segmented';
 import { SliderField } from './toolbar/slider-field';
+import { Textarea } from '@/components/ui/textarea';
 import { TexturePicker } from './toolbar/texture-picker';
 import { TopBar } from './toolbar/top-bar';
+import { AI_RENDER_BACKGROUNDS } from '../../lib/ai-render-contract';
 import type {
   AIRenderParams,
   AIRenderResult,
@@ -187,6 +189,12 @@ type Props = {
   onAIRender: (params: AIRenderParams) => Promise<AIRenderResult>;
   onSuggestMetamorph: () => Promise<AISuggestResult>;
   onExportRenderBundle: (result: AIRenderResult, params: AIRenderParams) => void;
+  sceneLighting: string;
+  onSceneLightingChange: (value: string) => void;
+  sceneBackground: string;
+  onSceneBackgroundChange: (value: string) => void;
+  sceneCanvas: AIRenderParams['background'];
+  onSceneCanvasChange: (value: AIRenderParams['background']) => void;
   refImageName: string | null;
   onAttachRefImageClick: () => void;
   onClearRefImage: () => void;
@@ -350,6 +358,12 @@ export default function Toolbar({
   onAIRender,
   onSuggestMetamorph,
   onExportRenderBundle,
+  sceneLighting,
+  onSceneLightingChange,
+  sceneBackground,
+  onSceneBackgroundChange,
+  sceneCanvas,
+  onSceneCanvasChange,
   refImageName,
   onAttachRefImageClick,
   onClearRefImage,
@@ -400,6 +414,133 @@ export default function Toolbar({
                   onValueChange={onApplyPreset}
                   options={PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
                 />
+              
+                {(mode === 'metaball' || view === '3d') && (
+                <Disclosure label="Fine-tune form">
+                  <SliderField
+                    label="Neck width"
+                    value={tubeFactor}
+                    min={TUBE_FACTOR_MIN}
+                    max={TUBE_FACTOR_MAX}
+                    step={0.01}
+                    onChange={onTubeFactorChange}
+                    onCommit={onTubeFactorCommit}
+                  />
+                  <Hint>Capsule thickness before blur.</Hint>
+                  <SliderField
+                    label="Blur"
+                    value={gooStd}
+                    min={GOO_STD_MIN}
+                    max={GOO_STD_MAX}
+                    step={0.5}
+                    onChange={onGooStdChange}
+                    onCommit={onGooStdCommit}
+                  />
+                  <Hint>Spread of the merge — softer, wider joins.</Hint>
+                  <SliderField
+                    label="Contrast"
+                    value={gooThreshold}
+                    min={GOO_THRESHOLD_MIN}
+                    max={GOO_THRESHOLD_MAX}
+                    step={0.5}
+                    onChange={onGooThresholdChange}
+                    onCommit={onGooThresholdCommit}
+                  />
+                  <Hint>Alpha cutoff — higher = sharper waist, tighter neck.</Hint>
+                  <SliderField
+                    label="Pinch / merge"
+                    value={inwardPull}
+                    min={INWARD_PULL_MIN}
+                    max={INWARD_PULL_MAX}
+                    step={0.01}
+                    onChange={onInwardPullChange}
+                    onCommit={onInwardPullCommit}
+                  />
+                  <Hint>
+                    Barbell tubes at 0 → pinched metaball at 1. Also boosts effective blur as tubes
+                    fade.
+                  </Hint>
+
+                  {view === '2d' && (
+                    <Subsection>
+                      {selectedEdge && edgeFactor !== null && edgePull !== null ? (
+                        <>
+                          <SwitchField
+                            label="Customize selected connection"
+                            checked={edgeFactorOverridden || edgePullOverridden}
+                            onCheckedChange={(next) => {
+                              if (next) onEnableEdgeStyle();
+                              else onDisableEdgeStyle();
+                            }}
+                          />
+                          {edgeFactorOverridden || edgePullOverridden ? (
+                            <>
+                              <SliderField
+                                label="Neck width"
+                                value={edgeFactor}
+                                min={TUBE_FACTOR_MIN}
+                                max={TUBE_FACTOR_MAX}
+                                step={0.01}
+                                onChange={onEdgeFactorChange}
+                                onCommit={onEdgeFactorCommit}
+                              />
+                              <Hint>Capsule thickness for this connection before blur.</Hint>
+                              <SliderField
+                                label="Pinch"
+                                value={edgePull}
+                                min={INWARD_PULL_MIN}
+                                max={INWARD_PULL_MAX}
+                                step={0.01}
+                                onChange={onEdgePullChange}
+                                onCommit={onEdgePullCommit}
+                              />
+                              <Hint>
+                                How much tube remains on this join — 0 keeps a barbell, 1 fades the
+                                tube.
+                              </Hint>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!edgeFactorOverridden}
+                                  onClick={onEdgeFactorReset}
+                                >
+                                  Reset neck
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!edgePullOverridden}
+                                  onClick={onEdgePullReset}
+                                >
+                                  Reset pinch
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="col-span-2"
+                                  onClick={onRemoveEdge}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <Hint>
+                              Turn on to override global Neck and Pinch for this join only. Blur and
+                              Contrast stay global.
+                            </Hint>
+                          )}
+                        </>
+                      ) : (
+                        <Hint>
+                          Select a connection on the canvas to customize its neck and pinch.
+                        </Hint>
+                      )}
+                    </Subsection>
+                  )}
+                </Disclosure>
+                )}
               </Section>
 
               <Section value="motion" title="Motion">
@@ -589,7 +730,7 @@ export default function Toolbar({
               )}
 
               {view === '3d' && (
-                <Section value="material" title="Material">
+                <Section value="material" title="Look">
                   <Segmented
                     label="Look mode"
                     value={lookMode}
@@ -653,20 +794,6 @@ export default function Toolbar({
                         }))}
                       />
                       <Hint>{LIQUID_PRESETS.find((p) => p.id === liquidPreset)?.hint ?? ''}</Hint>
-                      <GroupLabel>Environment</GroupLabel>
-                      <PresetGrid
-                        label="Environment"
-                        value={liquidBackdrop}
-                        onValueChange={onLiquidBackdropChange}
-                        options={LIQUID_BACKDROPS.map((backdrop) => ({
-                          value: backdrop.id,
-                          label: backdrop.label,
-                          hint: backdrop.hint,
-                        }))}
-                      />
-                      <Hint>
-                        {LIQUID_BACKDROPS.find((b) => b.id === liquidBackdrop)?.hint ?? ''}
-                      </Hint>
                       <Disclosure label="Fine tune liquid">
                         <SliderField
                           label="Transmission"
@@ -780,6 +907,64 @@ export default function Toolbar({
               )}
 
               {view === '3d' && (
+                <Section value="scene" title="Scene">
+                  {/* One description of how the object is presented — the AI
+                      render reads lighting and background from here, and the
+                      liquid look's environment lives here too. Parametric
+                      live-view lighting is deliberately out of scope (#49). */}
+                  {lookMode === 'liquid' && (
+                    <>
+                      <GroupLabel>Environment</GroupLabel>
+                      <PresetGrid
+                        label="Environment"
+                        value={liquidBackdrop}
+                        onValueChange={onLiquidBackdropChange}
+                        options={LIQUID_BACKDROPS.map((backdrop) => ({
+                          value: backdrop.id,
+                          label: backdrop.label,
+                          hint: backdrop.hint,
+                        }))}
+                      />
+                      <Hint>
+                        {LIQUID_BACKDROPS.find((b) => b.id === liquidBackdrop)?.hint ?? ''}
+                      </Hint>
+                    </>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <GroupLabel>Lighting</GroupLabel>
+                    <Textarea
+                      rows={2}
+                      className="min-h-14 font-mono text-xs"
+                      value={sceneLighting}
+                      onChange={(event) => onSceneLightingChange(event.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <GroupLabel>Background</GroupLabel>
+                    <Textarea
+                      rows={2}
+                      className="min-h-14 font-mono text-xs"
+                      disabled={sceneCanvas === 'transparent'}
+                      value={sceneBackground}
+                      onChange={(event) => onSceneBackgroundChange(event.target.value)}
+                    />
+                  </div>
+                  <SelectField
+                    label="Canvas"
+                    value={sceneCanvas}
+                    onValueChange={(value) =>
+                      onSceneCanvasChange(value as AIRenderParams['background'])
+                    }
+                    options={AI_RENDER_BACKGROUNDS.map((background) => ({
+                      value: background,
+                      label: background,
+                    }))}
+                  />
+                  <Hint>Lighting, background and canvas feed the AI material render.</Hint>
+                </Section>
+              )}
+
+              {view === '3d' && (
                 <Section value="advanced-3d" title="Advanced 3D">
                   <Disclosure label="Surface sampling">
                     <SwitchField
@@ -856,133 +1041,6 @@ export default function Toolbar({
                     checked={fullGrid}
                     onCheckedChange={onFullGridChange}
                   />
-                </Section>
-              )}
-
-              {(mode === 'metaball' || view === '3d') && (
-                <Section value="style" title="Style">
-                  <SliderField
-                    label="Neck width"
-                    value={tubeFactor}
-                    min={TUBE_FACTOR_MIN}
-                    max={TUBE_FACTOR_MAX}
-                    step={0.01}
-                    onChange={onTubeFactorChange}
-                    onCommit={onTubeFactorCommit}
-                  />
-                  <Hint>Capsule thickness before blur.</Hint>
-                  <SliderField
-                    label="Blur"
-                    value={gooStd}
-                    min={GOO_STD_MIN}
-                    max={GOO_STD_MAX}
-                    step={0.5}
-                    onChange={onGooStdChange}
-                    onCommit={onGooStdCommit}
-                  />
-                  <Hint>Spread of the merge — softer, wider joins.</Hint>
-                  <SliderField
-                    label="Contrast"
-                    value={gooThreshold}
-                    min={GOO_THRESHOLD_MIN}
-                    max={GOO_THRESHOLD_MAX}
-                    step={0.5}
-                    onChange={onGooThresholdChange}
-                    onCommit={onGooThresholdCommit}
-                  />
-                  <Hint>Alpha cutoff — higher = sharper waist, tighter neck.</Hint>
-                  <SliderField
-                    label="Pinch / merge"
-                    value={inwardPull}
-                    min={INWARD_PULL_MIN}
-                    max={INWARD_PULL_MAX}
-                    step={0.01}
-                    onChange={onInwardPullChange}
-                    onCommit={onInwardPullCommit}
-                  />
-                  <Hint>
-                    Barbell tubes at 0 → pinched metaball at 1. Also boosts effective blur as tubes
-                    fade.
-                  </Hint>
-
-                  {view === '2d' && (
-                    <Subsection>
-                      {selectedEdge && edgeFactor !== null && edgePull !== null ? (
-                        <>
-                          <SwitchField
-                            label="Customize selected connection"
-                            checked={edgeFactorOverridden || edgePullOverridden}
-                            onCheckedChange={(next) => {
-                              if (next) onEnableEdgeStyle();
-                              else onDisableEdgeStyle();
-                            }}
-                          />
-                          {edgeFactorOverridden || edgePullOverridden ? (
-                            <>
-                              <SliderField
-                                label="Neck width"
-                                value={edgeFactor}
-                                min={TUBE_FACTOR_MIN}
-                                max={TUBE_FACTOR_MAX}
-                                step={0.01}
-                                onChange={onEdgeFactorChange}
-                                onCommit={onEdgeFactorCommit}
-                              />
-                              <Hint>Capsule thickness for this connection before blur.</Hint>
-                              <SliderField
-                                label="Pinch"
-                                value={edgePull}
-                                min={INWARD_PULL_MIN}
-                                max={INWARD_PULL_MAX}
-                                step={0.01}
-                                onChange={onEdgePullChange}
-                                onCommit={onEdgePullCommit}
-                              />
-                              <Hint>
-                                How much tube remains on this join — 0 keeps a barbell, 1 fades the
-                                tube.
-                              </Hint>
-                              <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={!edgeFactorOverridden}
-                                  onClick={onEdgeFactorReset}
-                                >
-                                  Reset neck
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={!edgePullOverridden}
-                                  onClick={onEdgePullReset}
-                                >
-                                  Reset pinch
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="col-span-2"
-                                  onClick={onRemoveEdge}
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            </>
-                          ) : (
-                            <Hint>
-                              Turn on to override global Neck and Pinch for this join only. Blur and
-                              Contrast stay global.
-                            </Hint>
-                          )}
-                        </>
-                      ) : (
-                        <Hint>
-                          Select a connection on the canvas to customize its neck and pinch.
-                        </Hint>
-                      )}
-                    </Subsection>
-                  )}
                 </Section>
               )}
 
