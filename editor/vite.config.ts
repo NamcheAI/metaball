@@ -6,6 +6,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AIRenderRequest, AISuggestRequest } from './lib/ai-render-contract.js'
 import { AIRenderError, runOpenAIImageRender } from './lib/openai-image-render.js'
 import { runOpenAIMaterialSuggest } from './lib/openai-material-suggest.js'
+import { RenderJobStore } from './lib/render-jobs.js'
+import { handleRenderJobsRequest } from './server/render-jobs-route.js'
+import { runOpenAIImageRender as runRender } from './lib/openai-image-render.js'
 
 const DEV_RENDER_BODY_LIMIT = 12 * 1024 * 1024
 
@@ -33,20 +36,37 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
 }
 
 function localAIRenderApi(options: { apiKey?: string; model?: string; suggestModel?: string }): Plugin {
+  const jobStore = new RenderJobStore((request) =>
+    runRender(request, { apiKey: options.apiKey, model: options.model }),
+  )
   return {
     name: 'namche-local-ai-render-api',
     configureServer(server) {
       server.middlewares.use('/api/render', async (request: IncomingMessage, response: ServerResponse) => {
-        if (request.method !== 'POST') {
-          response.setHeader('Allow', 'POST')
-          sendJson(response, 405, { error: 'Method not allowed.' })
-          return
-        }
+        const remainder = request.url ?? ''
+        // The middleware mounts on the /api/render prefix; request.url is
+        // the remainder: '/suggest', '/jobs', '/jobs/<id>' or '/'. The jobs
+        // route owns its own method handling (GET polls are legitimate), so
+        // the POST-only guard must not run ahead of it.
         try {
+          if (remainder === '/jobs' || remainder.startsWith('/jobs/')) {
+            const jobBody = request.method === 'POST' ? await readJsonBody(request) : undefined
+            await handleRenderJobsRequest(
+              jobStore,
+              response,
+              request.method,
+              '/api/render' + remainder,
+              jobBody,
+            )
+            return
+          }
+          if (request.method !== 'POST') {
+            response.setHeader('Allow', 'POST')
+            sendJson(response, 405, { error: 'Method not allowed.' })
+            return
+          }
           const body = await readJsonBody(request)
-          // The middleware mounts on the /api/render prefix; request.url is
-          // the remainder, so the suggest sub-route arrives as '/suggest'.
-          if ((request.url ?? '').startsWith('/suggest')) {
+          if (remainder.startsWith('/suggest')) {
             sendJson(
               response,
               200,
