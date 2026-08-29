@@ -81,11 +81,27 @@ export async function runReplicateEnhance(
     );
   }
 
-  // 2. Create the prediction on the model-scoped endpoint (tracks latest version).
-  const createResponse = await fetchImpl(`${API}/models/${model}/predictions`, {
+  // 2. Resolve the model's latest version: the model-scoped predictions
+  //    endpoint serves only official models, and Clarity is a community
+  //    model — those need POST /v1/predictions with an explicit version.
+  const modelResponse = await fetchImpl(`${API}/models/${model}`, { headers });
+  const modelPayload = (await modelResponse.json().catch(() => null)) as {
+    latest_version?: { id?: string };
+  } | null;
+  const version = modelPayload?.latest_version?.id;
+  if (!modelResponse.ok || !version) {
+    throw new AIRenderError(
+      mapStatus(modelResponse.status),
+      upstreamMessage(modelPayload, `The enhancement model "${model}" could not be resolved.`),
+    );
+  }
+
+  // 3. Create the prediction.
+  const createResponse = await fetchImpl(`${API}/predictions`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      version,
       input: {
         image: filePayload.urls.get,
         scale_factor: params.scaleFactor,
@@ -106,7 +122,7 @@ export async function runReplicateEnhance(
     );
   }
 
-  // 3. Poll until terminal.
+  // 4. Poll until terminal.
   const deadline = Date.now() + (options.maxWaitMs ?? MAX_WAIT_MS);
   let prediction = created as { status?: string; output?: unknown; error?: unknown };
   while (prediction.status === 'starting' || prediction.status === 'processing') {
@@ -125,7 +141,7 @@ export async function runReplicateEnhance(
     throw new AIRenderError(502, detail);
   }
 
-  // 4. Fetch the output (URL or first of an array; the URL expires, so it is
+  // 5. Fetch the output (URL or first of an array; the URL expires, so it is
   //    materialized here and returned as a data URL like every render).
   const output = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
   if (typeof output !== 'string' || !output) {
