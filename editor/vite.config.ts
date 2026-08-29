@@ -8,6 +8,8 @@ import { AIRenderError, runOpenAIImageRender } from './lib/openai-image-render.j
 import { runOpenAIMaterialSuggest } from './lib/openai-material-suggest.js'
 import { RenderJobStore } from './lib/render-jobs.js'
 import { handleRenderJobsRequest } from './server/render-jobs-route.js'
+import { runReplicateEnhance } from './lib/replicate-enhance.js'
+import type { AIEnhanceRequest, AIEnhanceResult } from './lib/ai-render-contract.js'
 import { runOpenAIImageRender as runRender } from './lib/openai-image-render.js'
 
 const DEV_RENDER_BODY_LIMIT = 12 * 1024 * 1024
@@ -35,13 +37,40 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body))
 }
 
-function localAIRenderApi(options: { apiKey?: string; model?: string; suggestModel?: string }): Plugin {
+function localAIRenderApi(options: {
+  apiKey?: string
+  model?: string
+  suggestModel?: string
+  replicateToken?: string
+}): Plugin {
   const jobStore = new RenderJobStore((request) =>
     runRender(request, { apiKey: options.apiKey, model: options.model }),
+  )
+  const enhanceStore = new RenderJobStore<AIEnhanceRequest, AIEnhanceResult>(
+    (request) => runReplicateEnhance(request, { apiToken: options.replicateToken }),
+    Date.now,
+    'Detail enhancement failed.',
   )
   return {
     name: 'namche-local-ai-render-api',
     configureServer(server) {
+      server.middlewares.use('/api/enhance', async (request: IncomingMessage, response: ServerResponse) => {
+        const remainder = request.url ?? ''
+        try {
+          const jobBody = request.method === 'POST' ? await readJsonBody(request) : undefined
+          await handleRenderJobsRequest(
+            enhanceStore,
+            response,
+            request.method,
+            '/api/enhance' + remainder,
+            jobBody,
+            '/api/enhance/jobs',
+          )
+        } catch (error) {
+          console.error('Local enhance failed', error)
+          sendJson(response, 500, { error: 'Detail enhancement failed.' })
+        }
+      })
       server.middlewares.use('/api/render', async (request: IncomingMessage, response: ServerResponse) => {
         const remainder = request.url ?? ''
         // The middleware mounts on the /api/render prefix; request.url is
@@ -102,6 +131,7 @@ export default defineConfig(({ mode }) => {
         apiKey: env.OPENAI_API_KEY,
         model: env.OPENAI_IMAGE_MODEL,
         suggestModel: env.OPENAI_SUGGEST_MODEL,
+        replicateToken: env.REPLICATE_API_TOKEN,
       }),
     ],
     resolve: {

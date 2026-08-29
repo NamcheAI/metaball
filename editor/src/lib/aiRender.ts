@@ -1,4 +1,6 @@
 import type {
+  AIEnhanceRequest,
+  AIEnhanceResult,
   AIRenderParams,
   AIRenderRequest,
   AIRenderResult,
@@ -186,6 +188,37 @@ export async function suggestMetamorphParams(reference: RefImageBytes): Promise<
     throw new Error('AI suggestion returned an invalid response.');
   }
   return payload as AISuggestResult;
+}
+
+/** The enhance stage: submit the composed render, poll the async job. */
+export async function enhanceAIRender(request: AIEnhanceRequest): Promise<AIEnhanceResult> {
+  const submit = await fetch('/api/enhance/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  const submitted = (await submit.json().catch(() => null)) as
+    | { jobId?: string; error?: unknown }
+    | null;
+  if (!submit.ok || typeof submitted?.jobId !== 'string') {
+    const message =
+      typeof submitted?.error === 'string' ? submitted.error : 'Detail enhancement failed.';
+    throw new Error(message);
+  }
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    const response = await fetch(`/api/enhance/jobs/${submitted.jobId}`);
+    const payload = (await response.json().catch(() => null)) as
+      | (Partial<AIEnhanceResult> & { status?: string; error?: unknown })
+      | null;
+    if (payload?.status === 'running') continue;
+    if (!response.ok || typeof payload?.image !== 'string') {
+      const message =
+        typeof payload?.error === 'string' ? payload.error : 'Detail enhancement failed.';
+      throw new Error(message);
+    }
+    return payload as AIEnhanceResult;
+  }
 }
 
 export function downloadAIRender(result: AIRenderResult): void {

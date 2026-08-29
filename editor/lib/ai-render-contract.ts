@@ -314,3 +314,53 @@ export type AISuggestResult = {
   structureDescription: string;
   model: string;
 };
+
+// --- Enhance detail stage -------------------------------------------------
+// Compose small with gpt-image-2 (where it is strongest), then re-synthesize
+// micro-detail at target scale with a creative img2img upscaler — the role
+// Magnific Precision played in the original Weave graph.
+
+export const AI_ENHANCE_SCALES = [2, 4] as const;
+export type AIEnhanceScale = (typeof AI_ENHANCE_SCALES)[number];
+
+export type AIEnhanceRequest = {
+  /** The composed render as a data URL (keep it <=4 MB — compose small). */
+  image: string;
+  scaleFactor: AIEnhanceScale;
+  /** 0..1: how much new detail the upscaler may invent. */
+  creativity: number;
+  /** 0..1: how strongly the result must match the input. */
+  resemblance: number;
+};
+
+export type AIEnhanceResult = {
+  image: string;
+  model: string;
+  scaleFactor: AIEnhanceScale;
+  creativity: number;
+  resemblance: number;
+};
+
+export const DEFAULT_AI_ENHANCE = {
+  scaleFactor: 2 as AIEnhanceScale,
+  creativity: 0.35,
+  resemblance: 0.6,
+};
+
+function clampUnit(value: unknown, fallback: number): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.round(Math.min(1, Math.max(0, numeric)) * 100) / 100;
+}
+
+export function normalizeAIEnhanceRequest(value: unknown): Omit<AIEnhanceRequest, 'image'> {
+  const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const scale = Number(input.scaleFactor);
+  return {
+    scaleFactor: (AI_ENHANCE_SCALES as readonly number[]).includes(scale)
+      ? (scale as AIEnhanceScale)
+      : DEFAULT_AI_ENHANCE.scaleFactor,
+    creativity: clampUnit(input.creativity, DEFAULT_AI_ENHANCE.creativity),
+    resemblance: clampUnit(input.resemblance, DEFAULT_AI_ENHANCE.resemblance),
+  };
+}

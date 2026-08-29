@@ -5,6 +5,8 @@ import { handleRenderRequest } from './render.js';
 import { handleSuggestRequest } from './suggest.js';
 import { handleRenderJobsRequest } from './render-jobs-route.js';
 import { RenderJobStore } from '../lib/render-jobs.js';
+import { runReplicateEnhance } from '../lib/replicate-enhance.js';
+import type { AIEnhanceRequest, AIEnhanceResult } from '../lib/ai-render-contract.js';
 import {
   createRenderRateLimiter,
   renderRateLimitBudget,
@@ -41,6 +43,11 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
   const renderLimiter = createRenderRateLimiter(renderRateLimitBudget());
   const trustProxy = renderRateLimitTrustProxy();
   const renderJobs = new RenderJobStore();
+  const enhanceJobs = new RenderJobStore<AIEnhanceRequest, AIEnhanceResult>(
+    runReplicateEnhance,
+    Date.now,
+    'Detail enhancement failed.',
+  );
 
   return async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -86,6 +93,28 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
         }
         const body = req.method === 'POST' ? await readRequestBody(req) : undefined;
         await handleRenderJobsRequest(renderJobs, res, req.method, pathname, body);
+        return;
+      }
+
+      // The enhance stage: same async-job shape, a different paid provider.
+      if (pathname === '/api/enhance/jobs' || pathname.startsWith('/api/enhance/jobs/')) {
+        if (pathname === '/api/enhance/jobs' && req.method === 'POST') {
+          const verdict = renderLimiter.take(renderRateLimitKey(req, trustProxy));
+          if (!verdict.allowed) {
+            res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
+            sendJson(res, 429, { error: 'Render rate limit reached. Try again later.' });
+            return;
+          }
+        }
+        const body = req.method === 'POST' ? await readRequestBody(req) : undefined;
+        await handleRenderJobsRequest(
+          enhanceJobs,
+          res,
+          req.method,
+          pathname,
+          body,
+          '/api/enhance/jobs',
+        );
         return;
       }
 
