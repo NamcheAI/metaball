@@ -12,6 +12,9 @@ const MAX_SHAPE_SIDE = 1_280;
 // body limit; beyond this a JPEG re-encode loses nothing that matters for
 // an opaque studio capture.
 const MAX_SHAPE_PNG_BYTES = 2_500_000;
+const RENDER_POLL_INTERVAL_MS = 2_500;
+// 4K quality-high renders run ~2 minutes; leave generous headroom.
+const RENDER_POLL_TIMEOUT_MS = 8 * 60_000;
 
 function readBlobAsDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -78,24 +81,6 @@ function captureShapeDataUrl(source: HTMLCanvasElement): string {
   return png;
 }
 
-async function parseResponse(response: Response): Promise<AIRenderResult> {
-  const payload = (await response.json().catch(() => null)) as
-    | (Partial<AIRenderResult> & { error?: unknown })
-    | null;
-  if (!response.ok) {
-    const message = typeof payload?.error === 'string' ? payload.error : 'AI material render failed.';
-    throw new Error(message);
-  }
-  if (
-    typeof payload?.image !== 'string' ||
-    typeof payload.model !== 'string' ||
-    typeof payload.prompt !== 'string'
-  ) {
-    throw new Error('AI material render returned an invalid response.');
-  }
-  return payload as AIRenderResult;
-}
-
 export async function renderAIMaterial(options: {
   canvas: HTMLCanvasElement;
   params: AIRenderParams;
@@ -121,12 +106,51 @@ export async function renderAIMaterial(options: {
       : null,
     params: options.params,
   };
-  const response = await fetch('/api/render', {
+  // Submit-and-poll: a high-resolution render takes minutes, and every proxy
+  // in front of the app enforces a response deadline (Cloudflare's proxy
+  // read timeout is 125s). Each of these requests completes in well under a
+  // second, so no layer's timeout is ever in play.
+  const submit = await fetch('/api/render/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return parseResponse(response);
+  const submitted = (await submit.json().catch(() => null)) as
+    | { jobId?: unknown; error?: unknown }
+    | null;
+  if (!submit.ok || typeof submitted?.jobId !== 'string') {
+    const message =
+      typeof submitted?.error === 'string' ? submitted.error : 'AI material render failed.';
+    throw new Error(message);
+  }
+  const deadline = Date.now() + RENDER_POLL_TIMEOUT_MS;
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, RENDER_POLL_INTERVAL_MS));
+    const response = await fetch(`/api/render/jobs/${submitted.jobId}`);
+    const payload = (await response.json().catch(() => null)) as
+      | (Partial<AIRenderResult> & { status?: unknown; error?: unknown })
+      | null;
+    if (!response.ok) {
+      const message =
+        typeof payload?.error === 'string' ? payload.error : 'AI material render failed.';
+      throw new Error(message);
+    }
+    if (payload?.status === 'running') {
+      if (Date.now() > deadline) {
+        throw new Error('The render is taking unusually long. Try again or lower the size.');
+      }
+      continue;
+    }
+    if (
+      payload?.status === 'done' &&
+      typeof payload.image === 'string' &&
+      typeof payload.model === 'string' &&
+      typeof payload.prompt === 'string'
+    ) {
+      return payload as AIRenderResult;
+    }
+    throw new Error('AI material render returned an invalid response.');
+  }
 }
 
 /** Fetch a CDN texture into the same byte shape the panel uses for uploads. */

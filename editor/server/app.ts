@@ -3,6 +3,8 @@ import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleRenderRequest } from './render.js';
 import { handleSuggestRequest } from './suggest.js';
+import { handleRenderJobsRequest } from './render-jobs-route.js';
+import { RenderJobStore } from '../lib/render-jobs.js';
 import {
   createRenderRateLimiter,
   renderRateLimitBudget,
@@ -38,6 +40,7 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
   // is a paid provider call whenever OPENAI_API_KEY is configured.
   const renderLimiter = createRenderRateLimiter(renderRateLimitBudget());
   const trustProxy = renderRateLimitTrustProxy();
+  const renderJobs = new RenderJobStore();
 
   return async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -70,6 +73,22 @@ export function createRequestListener(options: AppOptions = {}): RequestListener
       // Method validation (POST-only for render) lives in the handler
       // itself -- routing here only matches the path so that behavior
       // isn't duplicated.
+      if (pathname === '/api/render/jobs' || pathname.startsWith('/api/render/jobs/')) {
+        // Submitting is the paid call and shares the render budget; polling
+        // is a cheap in-memory read and stays unlimited.
+        if (pathname === '/api/render/jobs' && req.method === 'POST') {
+          const verdict = renderLimiter.take(renderRateLimitKey(req, trustProxy));
+          if (!verdict.allowed) {
+            res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
+            sendJson(res, 429, { error: 'Render rate limit reached. Try again later.' });
+            return;
+          }
+        }
+        const body = req.method === 'POST' ? await readRequestBody(req) : undefined;
+        await handleRenderJobsRequest(renderJobs, res, req.method, pathname, body);
+        return;
+      }
+
       if (pathname === '/api/render' || pathname === '/api/render/suggest') {
         const verdict = renderLimiter.take(renderRateLimitKey(req, trustProxy));
         if (!verdict.allowed) {
