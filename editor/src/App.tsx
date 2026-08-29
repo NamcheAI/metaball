@@ -84,7 +84,7 @@ function refImageExtension(mime: string): string {
 
 type ViewMode = '2d' | '3d';
 
-export default function App() {
+export default function App({ initialView = '2d' }: { initialView?: ViewMode } = {}) {
   const [history, setHistory] = useState<HistoryState>(() =>
     // Only a first-ever document follows the interface into the dark; after
     // that the canvas theme is the document's own, switched from Appearance.
@@ -94,7 +94,9 @@ export default function App() {
   );
   const [selected, setSelected] = useState<NodeId | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>('2d');
+  // The view is fixed per route (/studio/mark vs /studio/object): switching
+  // dimension is a navigation, not a toolbar toggle.
+  const view: ViewMode = initialView;
   const [markOnly, setMarkOnly] = useState(false);
   const [pngScale, setPngScale] = useState<PngScale>(4);
   const [showExportPreview, setShowExportPreview] = useState(false);
@@ -862,7 +864,7 @@ export default function App() {
           mode={doc.mode}
           onModeChange={(mode) => updateDocField('mode', mode)}
           view={view}
-          onViewChange={setView}
+
           materialPreset={doc.materialPreset}
           onMaterialPresetChange={(id) => updateDocField('materialPreset', id)}
           textureSlug={doc.textureSlug}
