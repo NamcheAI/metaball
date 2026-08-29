@@ -2,11 +2,15 @@ import { useState } from 'react';
 
 import { Hint, SelectField, SwitchField } from './toolbar/fields';
 import { SliderField } from './toolbar/slider-field';
+import { Segmented } from './toolbar/segmented';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  AI_ENHANCE_SCALES,
+  DEFAULT_AI_ENHANCE,
+  type AIEnhanceScale,
   AI_RENDER_QUALITIES,
   AI_RENDER_SIZES,
   DEFAULT_AI_METAMORPH_PARAMS,
@@ -16,7 +20,7 @@ import {
   type AIRenderResult,
   type AISuggestResult,
 } from '../../lib/ai-render-contract';
-import { downloadAIRender } from '../lib/aiRender';
+import { downloadAIRender, enhanceAIRender } from '../lib/aiRender';
 
 type Props = {
   canRender: boolean;
@@ -64,6 +68,8 @@ export default function AIRenderPanel({
   const [params, setParams] = useState<AIRenderParams>(DEFAULT_AI_RENDER_PARAMS);
   const [status, setStatus] = useState<'idle' | 'rendering' | 'done' | 'error'>('idle');
   const [suggesting, setSuggesting] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhance, setEnhance] = useState({ ...DEFAULT_AI_ENHANCE });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AIRenderResult | null>(null);
 
@@ -75,6 +81,28 @@ export default function AIRenderPanel({
       ...current,
       metamorph: { ...(current.metamorph ?? DEFAULT_AI_METAMORPH_PARAMS), [key]: value },
     }));
+
+  const runEnhance = async () => {
+    if (!result) return;
+    setEnhancing(true);
+    setError(null);
+    try {
+      const enhanced = await enhanceAIRender({ image: result.image, ...enhance });
+      // The enhanced image replaces the card; prompt and request id stay from
+      // the composing render, the model label records both stages.
+      setResult((current) =>
+        current
+          ? { ...current, image: enhanced.image, model: `${current.model} + ${enhanced.model}` }
+          : current,
+      );
+    } catch (enhanceError) {
+      setError(
+        enhanceError instanceof Error ? enhanceError.message : 'Detail enhancement failed.',
+      );
+    } finally {
+      setEnhancing(false);
+    }
+  };
 
   const suggest = async () => {
     setSuggesting(true);
@@ -251,17 +279,64 @@ export default function AIRenderPanel({
               className="block aspect-square w-full bg-muted object-contain"
             />
           </CardContent>
-          <CardFooter className="flex items-center justify-between gap-2 border-t px-3 py-2">
-            <span className="truncate font-mono text-[0.625rem] text-muted-foreground">
-              {result.model}
-            </span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="xs" onClick={() => downloadAIRender(result)}>
-                PNG
+          <CardFooter className="flex flex-col gap-2 border-t px-3 py-2">
+            <div className="flex w-full items-center justify-between gap-2">
+              <span className="truncate font-mono text-[0.625rem] text-muted-foreground">
+                {result.model}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="xs" onClick={() => downloadAIRender(result)}>
+                  PNG
+                </Button>
+                <Button variant="outline" size="xs" onClick={() => onExportBundle(result, params)}>
+                  Bundle
+                </Button>
+              </div>
+            </div>
+            {/* Compose small, then re-synthesize micro-detail at scale — the
+                role Magnific played in the original Weave graph. */}
+            <div className="flex w-full items-center gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                disabled={enhancing}
+                onClick={() => void runEnhance()}
+              >
+                {enhancing ? 'Enhancing…' : 'Enhance detail'}
               </Button>
-              <Button variant="outline" size="xs" onClick={() => onExportBundle(result, params)}>
-                Bundle
-              </Button>
+              <Segmented
+                label="Enhance scale"
+                value={String(enhance.scaleFactor) as '2' | '4'}
+                onValueChange={(value) =>
+                  setEnhance((current) => ({
+                    ...current,
+                    scaleFactor: Number(value) as AIEnhanceScale,
+                  }))
+                }
+                className="w-auto"
+                options={AI_ENHANCE_SCALES.map((scale) => ({
+                  value: String(scale) as '2' | '4',
+                  label: `${scale}×`,
+                }))}
+              />
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2">
+              <SliderField
+                label="Creativity"
+                value={enhance.creativity}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(value) => setEnhance((current) => ({ ...current, creativity: value }))}
+              />
+              <SliderField
+                label="Resemblance"
+                value={enhance.resemblance}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(value) => setEnhance((current) => ({ ...current, resemblance: value }))}
+              />
             </div>
           </CardFooter>
         </Card>

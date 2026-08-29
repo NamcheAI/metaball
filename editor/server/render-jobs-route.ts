@@ -1,7 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import { AIRenderError } from '../lib/openai-image-render.js';
 import { RENDER_JOB_ID_PATTERN, type RenderJobStore } from '../lib/render-jobs.js';
-import type { AIRenderRequest } from '../lib/ai-render-contract.js';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.statusCode = status;
@@ -17,20 +16,21 @@ function json(res: ServerResponse, status: number, body: unknown): void {
  * terminal answer is delivered exactly once.
  */
 export async function handleRenderJobsRequest(
-  store: RenderJobStore,
+  store: RenderJobStore<never, object>,
   res: ServerResponse,
   method: string | undefined,
   pathname: string,
   body: unknown,
+  basePath = '/api/render/jobs',
 ): Promise<void> {
-  if (pathname === '/api/render/jobs') {
+  if (pathname === basePath) {
     if (method !== 'POST') {
       res.setHeader('Allow', 'POST');
       json(res, 405, { error: 'Method not allowed.' });
       return;
     }
     try {
-      const jobId = store.create(body as AIRenderRequest);
+      const jobId = store.create(body as never);
       json(res, 202, { jobId });
     } catch (error) {
       if (error instanceof AIRenderError) {
@@ -43,7 +43,7 @@ export async function handleRenderJobsRequest(
     return;
   }
 
-  const id = pathname.slice('/api/render/jobs/'.length);
+  const id = pathname.slice(basePath.length + 1);
   if (method !== 'GET') {
     res.setHeader('Allow', 'GET');
     json(res, 405, { error: 'Method not allowed.' });

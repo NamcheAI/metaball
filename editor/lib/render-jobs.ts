@@ -16,12 +16,12 @@ import type { AIRenderRequest, AIRenderResult } from './ai-render-contract.js';
  * base64 payloads, so a job is deleted on first delivery and swept by TTL.
  */
 
-export type RenderJobState =
+export type RenderJobState<Result = AIRenderResult> =
   | { status: 'running' }
-  | { status: 'done'; result: AIRenderResult }
+  | { status: 'done'; result: Result }
   | { status: 'error'; httpStatus: number; error: string };
 
-type Job = { state: RenderJobState; expiresAt: number };
+type Job<Result> = { state: RenderJobState<Result>; expiresAt: number };
 
 const JOB_TTL_MS = 10 * 60_000;
 // Global spend/memory backstop behind the per-client rate limiter.
@@ -29,14 +29,20 @@ const MAX_ACTIVE_JOBS = 8;
 
 export const RENDER_JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-type Runner = (request: AIRenderRequest) => Promise<AIRenderResult>;
+type Runner<Request, Result> = (request: Request) => Promise<Result>;
 
-export class RenderJobStore {
-  private readonly jobs = new Map<string, Job>();
-  private readonly runner: Runner;
+export class RenderJobStore<Request = AIRenderRequest, Result = AIRenderResult> {
+  private readonly jobs = new Map<string, Job<Result>>();
+  private readonly runner: Runner<Request, Result>;
   private readonly now: () => number;
+  private readonly failureMessage: string;
 
-  constructor(runner: Runner = runOpenAIImageRender, now: () => number = Date.now) {
+  constructor(
+    runner: Runner<Request, Result> = runOpenAIImageRender as unknown as Runner<Request, Result>,
+    now: () => number = Date.now,
+    failureMessage = 'AI material render failed.',
+  ) {
+    this.failureMessage = failureMessage;
     this.runner = runner;
     this.now = now;
   }
@@ -48,13 +54,13 @@ export class RenderJobStore {
     }
   }
 
-  create(request: AIRenderRequest): string {
+  create(request: Request): string {
     this.sweep();
     if (this.jobs.size >= MAX_ACTIVE_JOBS) {
       throw new AIRenderError(429, 'Too many renders in flight. Try again in a minute.');
     }
     const id = randomUUID();
-    const job: Job = { state: { status: 'running' }, expiresAt: this.now() + JOB_TTL_MS };
+    const job: Job<Result> = { state: { status: 'running' }, expiresAt: this.now() + JOB_TTL_MS };
     this.jobs.set(id, job);
     this.runner(request)
       .then((result) => {
@@ -65,7 +71,7 @@ export class RenderJobStore {
         job.state = {
           status: 'error',
           httpStatus: error instanceof AIRenderError ? error.status : 500,
-          error: error instanceof AIRenderError ? error.message : 'AI material render failed.',
+          error: error instanceof AIRenderError ? error.message : this.failureMessage,
         };
         job.expiresAt = this.now() + JOB_TTL_MS;
       });
@@ -73,7 +79,7 @@ export class RenderJobStore {
   }
 
   /** Returns the job state, deleting the job once a terminal state is read. */
-  poll(id: string): RenderJobState | null {
+  poll(id: string): RenderJobState<Result> | null {
     this.sweep();
     const job = this.jobs.get(id);
     if (!job) return null;
