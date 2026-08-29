@@ -60,6 +60,7 @@ import type { RefImageBytes } from './lib/exportBlenderHandoff';
 import { fetchTextureReference, renderAIMaterial, suggestMetamorphParams } from './lib/aiRender';
 import { isTextureSlug, textureWebUrl } from './lib/texturePresets';
 import { exportRenderBundle } from './lib/renderBundle';
+import { DEFAULT_AI_RENDER_PARAMS } from '../lib/ai-render-contract';
 import type { AIRenderParams, AIRenderResult } from '../lib/ai-render-contract';
 
 // Loaded on demand: keeps three.js / react-three-fiber out of the initial
@@ -102,6 +103,17 @@ export default function App({ initialView = '2d' }: { initialView?: ViewMode } =
   const [showExportPreview, setShowExportPreview] = useState(false);
   const [exportPreviewPath, setExportPreviewPath] = useState<string | null>(null);
   const [customRefImage, setCustomRefImage] = useState<RefImageBytes | null>(null);
+  // Scene text lives with the Studio, not inside the AI panel: it describes
+  // how the object is presented, and the AI render reads it from here.
+  const [sceneLighting, setSceneLighting] = useState(
+    DEFAULT_AI_RENDER_PARAMS.lightingDescription,
+  );
+  const [sceneBackground, setSceneBackground] = useState(
+    DEFAULT_AI_RENDER_PARAMS.backgroundDescription,
+  );
+  const [sceneCanvas, setSceneCanvas] = useState<AIRenderParams['background']>(
+    DEFAULT_AI_RENDER_PARAMS.background,
+  );
   const [growing, setGrowing] = useState(false);
   const [growthElapsed, setGrowthElapsed] = useState(0);
   const [activeMotion, setActiveMotion] = useState<LoopMotionId | null>(null);
@@ -568,7 +580,12 @@ export default function App({ initialView = '2d' }: { initialView?: ViewMode } =
 
     return renderAIMaterial({
       canvas,
-      params,
+      params: {
+        ...params,
+        lightingDescription: sceneLighting,
+        backgroundDescription: sceneBackground,
+        background: sceneCanvas,
+      },
       materialReference,
       invalidate: handle?.invalidate,
     });
@@ -988,10 +1005,21 @@ export default function App({ initialView = '2d' }: { initialView?: ViewMode } =
           canAIRender={view === '3d'}
           onAIRender={doAIRender}
           onSuggestMetamorph={doSuggestMetamorph}
+          sceneLighting={sceneLighting}
+          onSceneLightingChange={setSceneLighting}
+          sceneBackground={sceneBackground}
+          onSceneBackgroundChange={setSceneBackground}
+          sceneCanvas={sceneCanvas}
+          onSceneCanvasChange={setSceneCanvas}
           onExportRenderBundle={(result: AIRenderResult, params: AIRenderParams) =>
             exportRenderBundle({
               result,
-              params,
+              params: {
+                ...params,
+                lightingDescription: sceneLighting,
+                backgroundDescription: sceneBackground,
+                background: sceneCanvas,
+              },
               doc,
               textureSlug: doc.textureSlug,
               referenceName: customRefImage?.fileName ?? null,
