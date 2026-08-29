@@ -27,11 +27,16 @@ function providerFetch(sequence: { predictionPolls?: number; failCreate?: boolea
         status: 201,
       });
     }
-    if (url.includes('/models/') && url.endsWith('/predictions')) {
+    if (url.includes('/models/') && !url.endsWith('/predictions')) {
+      // community models resolve their latest version first
+      return new Response(JSON.stringify({ latest_version: { id: 'ver-abc' } }), { status: 200 });
+    }
+    if (url.endsWith('/predictions')) {
       if (sequence.failCreate) {
         return new Response(JSON.stringify({ detail: 'Invalid version' }), { status: 422 });
       }
       const body = JSON.parse(String(init?.body));
+      assert.equal(body.version, 'ver-abc');
       assert.equal(body.input.image, 'https://files.example/render');
       assert.equal(body.input.scale_factor, 2);
       return new Response(
@@ -69,7 +74,8 @@ test('enhance adapter uploads, predicts, polls and materializes the output', asy
   assert.match(result.image, /^data:image\/png;base64,/);
   assert.equal(result.scaleFactor, 2);
   assert.equal(calls[0], 'POST https://api.replicate.com/v1/files');
-  assert.match(calls[1] ?? '', /POST .*\/models\/.*\/predictions/);
+  assert.equal(calls[1], 'GET https://api.replicate.com/v1/models/philz1337x/clarity-upscaler');
+  assert.equal(calls[2], 'POST https://api.replicate.com/v1/predictions');
 });
 
 test('enhance adapter fails closed: missing token, provider rejection', async () => {
