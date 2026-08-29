@@ -13,7 +13,6 @@ type ViewMode = '2d' | '3d';
 
 export function TopBar({
   view,
-  onViewChange,
   mode,
   onModeChange,
   canUndo,
@@ -22,7 +21,6 @@ export function TopBar({
   onRedo,
 }: {
   view: ViewMode;
-  onViewChange: (view: ViewMode) => void;
   mode: Mode;
   onModeChange: (mode: Mode) => void;
   canUndo: boolean;
@@ -88,16 +86,20 @@ export function TopBar({
 
         <Separator orientation="vertical" className="mx-1 h-5" />
 
-        <Segmented
-          label="View dimension"
-          value={view}
-          onValueChange={onViewChange}
-          className="w-auto"
-          options={[
-            { value: '2d', label: '2D' },
-            { value: '3d', label: '3D' },
-          ]}
-        />
+        {/* The dimension is the route (/studio/mark vs /studio/object):
+            switching is a navigation, not a toggle — the two paths are
+            different deliverables with different toolsets. */}
+        <span className="font-mono text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
+          {view === '2d' ? '2D mark' : '3D object'}
+        </span>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="text-muted-foreground"
+          render={<a href={view === '2d' ? '/studio/object' : '/studio/mark'} />}
+        >
+          {view === '2d' ? '\u21c4 3D object' : '\u21c4 2D mark'}
+        </Button>
 
         {view === '2d' && (
           <Segmented

@@ -81,7 +81,6 @@ type Props = {
   mode: Mode;
   onModeChange: (mode: Mode) => void;
   view: ViewMode;
-  onViewChange: (view: ViewMode) => void;
   materialPreset: string;
   onMaterialPresetChange: (id: string) => void;
   textureSlug: string | null;
@@ -245,7 +244,6 @@ export default function Toolbar({
   mode,
   onModeChange,
   view,
-  onViewChange,
   materialPreset,
   onMaterialPresetChange,
   textureSlug,
@@ -379,7 +377,6 @@ export default function Toolbar({
     <TooltipProvider>
       <TopBar
         view={view}
-        onViewChange={onViewChange}
         mode={mode}
         onModeChange={onModeChange}
         canUndo={canUndo}
