@@ -39,12 +39,14 @@ CALIBRATION — anchor your numbers to these so the same value means the same th
 - Honeycomb / bath foam: deform 30, nubs 10, porosity 100, pore 20, height 45, gloss 30, translucency 35, pattern 55.
 - Coral / sea sponge: deform 75, nubs 85, porosity 85, pore 25, height 80, gloss 20, translucency 15, pattern 60.
 
-Also write materialDescription: one vivid sentence naming the material family, palette, finish and translucency, usable as a standalone prompt line.`;
+Also write materialDescription: one vivid sentence naming the material family, palette, finish and translucency, usable as a standalone prompt line.
+
+Also write structureDescription: one sentence naming what this material's protrusions and openings actually ARE, in the material's own vocabulary — the renderer builds surface growths as these exact forms, so precision here is what stops every material from rendering as generic coral. Examples: "looping strands of cooked noodle with hollow cut tube-ends" / "muscular octopus tentacle tips lined with pale round suckers" / "miniature conifer crowns and mossy ridges, like a forested mountainside in miniature" / "clusters of taut, dusted berries pressed together" / "smooth gelatinous lobes with no distinct sub-structures".`;
 
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: [...AI_METAMORPH_PARAM_KEYS, 'materialDescription'],
+  required: [...AI_METAMORPH_PARAM_KEYS, 'materialDescription', 'structureDescription'],
   properties: {
     deformAmount: { type: 'integer', minimum: 0, maximum: 100 },
     nubDensity: { type: 'integer', minimum: 0, maximum: 100 },
@@ -55,6 +57,7 @@ const SCHEMA = {
     translucency: { type: 'integer', minimum: 0, maximum: 100 },
     patternScale: { type: 'integer', minimum: 0, maximum: 100 },
     materialDescription: { type: 'string', maxLength: 600 },
+    structureDescription: { type: 'string', maxLength: 600 },
   },
 } as const;
 
@@ -155,11 +158,18 @@ export async function runOpenAIMaterialSuggest(
   if (!params || !parsed || typeof parsed !== 'object') {
     throw new AIRenderError(502, 'The suggestion provider returned no usable parameters.');
   }
-  const materialDescription =
-    typeof (parsed as { materialDescription?: unknown }).materialDescription === 'string'
-      ? ((parsed as { materialDescription: string }).materialDescription.trim().slice(0, 600) ||
-        'Material derived from the attached reference photo.')
-      : 'Material derived from the attached reference photo.';
+  const text_field = (key: string, fallback: string): string => {
+    const value = (parsed as Record<string, unknown>)[key];
+    return typeof value === 'string' && value.trim() ? value.trim().slice(0, 600) : fallback;
+  };
+  const materialDescription = text_field(
+    'materialDescription',
+    'Material derived from the attached reference photo.',
+  );
+  const structureDescription = text_field(
+    'structureDescription',
+    'organic growths and openings true to the reference material, at their natural scale',
+  );
 
-  return { params, materialDescription, model };
+  return { params, materialDescription, structureDescription, model };
 }

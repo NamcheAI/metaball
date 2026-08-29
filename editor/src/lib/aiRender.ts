@@ -178,7 +178,11 @@ export async function suggestMetamorphParams(reference: RefImageBytes): Promise<
       typeof payload?.error === 'string' ? payload.error : 'AI suggestion failed.';
     throw new Error(message);
   }
-  if (!payload?.params || typeof payload.materialDescription !== 'string') {
+  if (
+    !payload?.params ||
+    typeof payload.materialDescription !== 'string' ||
+    typeof payload.structureDescription !== 'string'
+  ) {
     throw new Error('AI suggestion returned an invalid response.');
   }
   return payload as AISuggestResult;

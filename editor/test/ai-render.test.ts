@@ -130,10 +130,11 @@ test('metamorph template takes over when set with a material image, not without 
   });
   const withImage = buildAIRenderPrompt(params, true);
   assert.match(withImage, /surface deformation at 10% intensity/);
-  assert.match(withImage, /Grow 33% organic, finger-like nubs/);
+  assert.match(withImage, /characteristic surface forms outward at 33% density/);
   assert.match(withImage, /Thread 100% porosity/);
-  assert.match(withImage, /with 2% holes/);
+  assert.match(withImage, /with 2% openings/);
   assert.match(withImage, /relief at 70%/);
+  assert.match(withImage, /MATERIAL IDENTITY/);
   assert.match(withImage, /No text, captions, watermark/);
   // the reference photo is a material sample, never a scene
   assert.match(withImage, /ignore its scene, objects, background, perspective and lighting/);
@@ -260,4 +261,42 @@ test('every metamorph key is clamped and surfaced in the suggest schema', () => 
   for (const key of AI_METAMORPH_PARAM_KEYS) {
     assert.equal(clamped?.[key], 100, `${key} should clamp to 100`);
   }
+});
+
+test('the material identity replaces generic coral vocabulary in the template', () => {
+  const noodles = normalizeAIRenderParams({
+    ...DEFAULT_AI_RENDER_PARAMS,
+    materialDescription: 'Golden cooked noodles, semi-matte, opaque.',
+    structureDescription: 'looping strands of cooked noodle with hollow cut tube-ends',
+    metamorph: { ...DEFAULT_AI_METAMORPH_PARAMS, nubDensity: 60 },
+  });
+  const prompt = buildAIRenderPrompt(noodles, true);
+  assert.match(prompt, /looping strands of cooked noodle with hollow cut tube-ends/);
+  assert.match(prompt, /Golden cooked noodles/);
+  assert.match(prompt, /never as generic bumps or coral-like nubs/);
+  // The old hardcoded vocabulary is gone — it made every material render coral-ish.
+  assert.doesNotMatch(prompt, /finger-like nubs and tendrils/);
+});
+
+test('zero-valued knobs become negations instead of "0%" suggestions', () => {
+  // A sentence that says "0% holes" still plants the idea of holes — the
+  // blueberry sample rendered porous for exactly that reason.
+  const solid = normalizeAIRenderParams({
+    ...DEFAULT_AI_RENDER_PARAMS,
+    metamorph: {
+      ...DEFAULT_AI_METAMORPH_PARAMS,
+      nubDensity: 0,
+      porosityAmount: 0,
+      poreSize: 0,
+      heightVariation: 5,
+    },
+  });
+  const prompt = buildAIRenderPrompt(solid, true);
+  assert.match(prompt, /no holes, pores or cavities anywhere/);
+  assert.match(prompt, /free of protrusions/);
+  assert.match(prompt, /smooth and continuous, with soft flowing transitions/);
+  assert.doesNotMatch(prompt, /Thread 0% porosity/);
+  assert.doesNotMatch(prompt, /outward at 0% density/);
+  // and the jellyfish case: smooth materials must not get the relief sentence
+  assert.doesNotMatch(prompt, /peaks, ridges/);
 });

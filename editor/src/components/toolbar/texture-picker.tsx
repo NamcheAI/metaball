@@ -1,6 +1,8 @@
 import { cn } from '@/lib/utils';
 import { TEXTURE_OPTIONS, textureThumbUrl } from '../../lib/texturePresets';
 import { GroupLabel } from './fields';
+import { Disclosure } from './disclosure';
+import { Button } from '@/components/ui/button';
 
 /**
  * Thumbnail grid over the NAMCHE curated texture imagery. Thumbnails stream
@@ -15,9 +17,26 @@ export function TexturePicker({
   value: string | null;
   onValueChange: (slug: string | null) => void;
 }) {
+  const selected = TEXTURE_OPTIONS.find((image) => image.slug === value) ?? null;
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <GroupLabel>Surface texture</GroupLabel>
+      {selected && (
+        <div className="flex items-center gap-2">
+          <img
+            src={textureThumbUrl(selected.slug)}
+            alt=""
+            className="h-8 w-8 rounded-md border border-primary object-cover"
+          />
+          <span className="min-w-0 flex-1 truncate font-mono text-[0.625rem] text-muted-foreground">
+            {selected.slug}
+          </span>
+          <Button variant="outline" size="xs" onClick={() => onValueChange(null)}>
+            Off
+          </Button>
+        </div>
+      )}
+      <Disclosure label={selected ? 'Change texture' : 'Choose texture'}>
       <div role="listbox" aria-label="Surface texture" className="grid grid-cols-5 gap-1.5">
         <button
           type="button"
@@ -57,6 +76,7 @@ export function TexturePicker({
           </button>
         ))}
       </div>
+      </Disclosure>
     </div>
   );
 }
