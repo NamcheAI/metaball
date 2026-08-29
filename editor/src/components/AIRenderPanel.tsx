@@ -86,6 +86,7 @@ export default function AIRenderPanel({
         ...current,
         metamorph: suggestion.params,
         materialDescription: suggestion.materialDescription,
+        structureDescription: suggestion.structureDescription,
       }));
     } catch (suggestError) {
       setError(suggestError instanceof Error ? suggestError.message : 'AI suggestion failed.');
@@ -136,6 +137,17 @@ export default function AIRenderPanel({
               >
                 {suggesting ? 'Analyzing texture…' : 'Suggest parameters from texture'}
               </Button>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-normal text-muted-foreground">
+                  Structure — what the growths and openings are
+                </Label>
+                <Textarea
+                  rows={2}
+                  className="min-h-14 font-mono text-xs"
+                  value={params.structureDescription}
+                  onChange={(event) => patch('structureDescription', event.target.value)}
+                />
+              </div>
               {METAMORPH_SLIDERS.map(({ key, label }) => (
                 <SliderField
                   key={key}

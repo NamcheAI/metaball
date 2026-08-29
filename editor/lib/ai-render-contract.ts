@@ -67,6 +67,12 @@ export const AI_METAMORPH_PARAM_KEYS = [
 
 export type AIRenderParams = {
   materialDescription: string;
+  /** What this material's growths and openings actually ARE, in its own
+   *  vocabulary ("looping noodle strands with hollow tube ends", "tentacles
+   *  lined with suckers"). The metamorph template builds surface forms from
+   *  this instead of generic nub/pore language — the fix for every material
+   *  rendering coral-ish. */
+  structureDescription: string;
   geometryFidelity: number;
   materialInfluence: number;
   lightingDescription: string;
@@ -95,6 +101,8 @@ export type AIRenderResult = {
 export const DEFAULT_AI_RENDER_PARAMS: AIRenderParams = {
   materialDescription:
     'Iridescent mother-of-pearl with warm coral undertones, translucent depth and fine organic variation.',
+  structureDescription:
+    'organic growths and openings true to the reference material, at their natural scale',
   geometryFidelity: 95,
   materialInfluence: 75,
   lightingDescription: 'Soft directional studio light with a broad highlight and subtle rim light.',
@@ -145,6 +153,11 @@ export function normalizeAIRenderParams(value: unknown): AIRenderParams {
       input.materialDescription,
       DEFAULT_AI_RENDER_PARAMS.materialDescription,
       MAX_DESCRIPTION_LENGTH,
+    ),
+    structureDescription: normalizeText(
+      input.structureDescription,
+      DEFAULT_AI_RENDER_PARAMS.structureDescription,
+      MAX_SUPPORTING_DESCRIPTION_LENGTH,
     ),
     geometryFidelity: clampPercent(
       input.geometryFidelity,
@@ -206,7 +219,29 @@ export function buildAIMetamorphPrompt(params: AIRenderParams): string {
       : params.background === 'opaque'
         ? params.backgroundDescription
         : `Choose a background that supports the object. Direction: ${params.backgroundDescription}`;
-  return `Apply the surface texture, material, color palette, and finish from the second reference image onto the object in the first image. Use the second image ONLY as a material sample: ignore its scene, objects, background, perspective and lighting entirely. Keep the camera angle, framing, scale and position of the object exactly as in the first image. Apply surface deformation at ${m.deformAmount}% intensity — at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the irregular structure of the reference material. Grow ${m.nubDensity}% organic, finger-like nubs and tendrils out from the surface, as if the material itself is dripping or budding outward. Thread ${m.porosityAmount}% porosity through the entire structure — including through the nubs and tendrils themselves, not just the flat surface — with ${m.poreSize}% holes and cavities running organically through the material. Vary the surface relief at ${m.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the irregular topology of the reference. Render the finish at ${m.glossiness}% gloss — 0% is fully matte and light-absorbing like chalk or unglazed clay, 100% is a wet, mirror-bright specular sheen. Give the material ${m.translucency}% translucency — 0% fully opaque, 100% light passing visibly through thinner areas with soft subsurface scattering, as in wax, jade or milk. Scale the material's pattern to ${m.patternScale}% — low values read as a few large motifs spanning the whole form, high values as fine, dense repetition. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish.
+
+  // Zero-valued knobs become explicit negations: a sentence that mentions
+  // "0% holes" still plants the idea of holes, and the model obliges.
+  const growth =
+    m.nubDensity <= 5
+      ? 'Keep the silhouette free of protrusions: no nubs, tendrils or growths beyond the material\u2019s own fine relief.'
+      : `Grow the material\u2019s characteristic surface forms outward at ${m.nubDensity}% density \u2014 build them as the real structures named under MATERIAL IDENTITY, their true shape at their natural scale, never as generic bumps or coral-like nubs.`;
+  const porosity =
+    m.porosityAmount <= 5
+      ? 'Keep the structure closed and solid: no holes, pores or cavities anywhere.'
+      : `Thread ${m.porosityAmount}% porosity through the entire structure \u2014 including through the surface growths, not just the flat surface \u2014 with ${m.poreSize}% openings shaped the way this material\u2019s own openings look.`;
+  const relief =
+    m.heightVariation <= 10
+      ? 'Keep the surface smooth and continuous, with soft flowing transitions and no sharp relief.'
+      : `Vary the surface relief at ${m.heightVariation}%, with peaks, ridges, and recessed areas of uneven height across the whole form, matching the reference\u2019s topology.`;
+
+  return `Apply the surface texture, material, color palette, and finish from the second reference image onto the object in the first image. Use the second image ONLY as a material sample: ignore its scene, objects, background, perspective and lighting entirely. Keep the camera angle, framing, scale and position of the object exactly as in the first image.
+
+MATERIAL IDENTITY
+${params.materialDescription}
+The material\u2019s structures: ${params.structureDescription}. Every surface feature must read as THIS material \u2014 its real forms at their natural scale \u2014 never as generic organic texture.
+
+Apply surface deformation at ${m.deformAmount}% intensity \u2014 at low intensity, keep the geometry close to the original with only fine surface-level texture; at high intensity, let the form itself warp, bulge, or fracture to match the structure of the reference material. ${growth} ${porosity} ${relief} Render the finish at ${m.glossiness}% gloss \u2014 0% is fully matte and light-absorbing like chalk or unglazed clay, 100% is a wet, mirror-bright specular sheen. Give the material ${m.translucency}% translucency \u2014 0% fully opaque, 100% light passing visibly through thinner areas with soft subsurface scattering, as in wax, jade or milk. Scale the material\u2019s pattern to ${m.patternScale}% \u2014 low values read as a few large motifs spanning the whole form, high values as fine, dense repetition. Fully replace the original surface with the material qualities shown in the reference: its texture pattern, color, reflectivity, and finish.
 
 LIGHTING
 ${params.lightingDescription}
@@ -262,5 +297,6 @@ export type AISuggestRequest = {
 export type AISuggestResult = {
   params: AIMetamorphParams;
   materialDescription: string;
+  structureDescription: string;
   model: string;
 };
