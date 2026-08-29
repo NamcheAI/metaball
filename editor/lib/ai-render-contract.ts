@@ -17,6 +17,20 @@ export const AI_RENDER_SIZES = [
 ] as const;
 
 export const GPT_IMAGE_MAX_EDGE = 3840;
+
+/** A render whose long edge crosses this is a print/detail asset: the model
+ *  must invent scale-true micro-structure, not resolve the reference's
+ *  pattern more smoothly. */
+export const MACRO_DETAIL_EDGE = 2048;
+
+export function macroDetailBlock(size: string): string {
+  const [width = 0, height = 0] = size.split('x').map(Number);
+  if (Math.max(width, height) < MACRO_DETAIL_EDGE) return '';
+  return `
+
+MACRO DETAIL
+This image renders at ${size}. Treat it as macro photography at that resolution: resolve the material's smallest real structures — individual crystals, strands, pores, granules — with crisp, physically plausible edges, and vary them across the surface so no two regions repeat. Never smooth, blur, tile or upsample the pattern to fill the canvas; invent genuine fine structure everywhere, so any crop withstands close inspection as a real photograph of the material.`;
+}
 export const GPT_IMAGE_MIN_PIXELS = 655_360;
 export const GPT_IMAGE_MAX_PIXELS = 8_294_400;
 export type AIRenderSize = (typeof AI_RENDER_SIZES)[number];
@@ -249,7 +263,7 @@ ${params.lightingDescription}
 BACKGROUND
 ${backgroundInstruction}
 
-Photorealistic result. One object only. No table, floor, scenery or props from the reference image. No text, captions, watermark, frame, pedestal, hands or people.`;
+Photorealistic result. One object only. No table, floor, scenery or props from the reference image. No text, captions, watermark, frame, pedestal, hands or people.${macroDetailBlock(params.size)}`;
 }
 
 export function buildAIRenderPrompt(params: AIRenderParams, hasMaterialImage: boolean): string {
@@ -286,7 +300,7 @@ BACKGROUND
 ${backgroundInstruction}
 
 OUTPUT CONSTRAINTS
-One object only. No text, captions, watermark, frame, pedestal, hands or people. Render as a polished material/industrial-design photograph with coherent highlights, contact shadow when appropriate and physically plausible depth.`;
+One object only. No text, captions, watermark, frame, pedestal, hands or people. Render as a polished material/industrial-design photograph with coherent highlights, contact shadow when appropriate and physically plausible depth.${macroDetailBlock(params.size)}`;
 }
 
 export type AISuggestRequest = {

@@ -300,3 +300,23 @@ test('zero-valued knobs become negations instead of "0%" suggestions', () => {
   // and the jellyfish case: smooth materials must not get the relief sentence
   assert.doesNotMatch(prompt, /peaks, ridges/);
 });
+
+test('high-res renders demand invented macro detail; small ones do not', () => {
+  const base = normalizeAIRenderParams({
+    ...DEFAULT_AI_RENDER_PARAMS,
+    metamorph: DEFAULT_AI_METAMORPH_PARAMS,
+  });
+  const big = buildAIRenderPrompt({ ...base, size: '2880x2880' }, true);
+  assert.match(big, /MACRO DETAIL/);
+  assert.match(big, /renders at 2880x2880/);
+  assert.match(big, /no two regions repeat/);
+  assert.match(big, /Never smooth, blur, tile or upsample/);
+  const small = buildAIRenderPrompt({ ...base, size: '1024x1024' }, true);
+  assert.doesNotMatch(small, /MACRO DETAIL/);
+  // the classic prompt gets the same treatment
+  const classicBig = buildAIRenderPrompt(
+    normalizeAIRenderParams({ ...DEFAULT_AI_RENDER_PARAMS, size: '3840x2160' }),
+    false,
+  );
+  assert.match(classicBig, /MACRO DETAIL/);
+});
