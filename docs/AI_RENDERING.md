@@ -45,8 +45,8 @@ Copy `editor/.env.example` to `editor/.env.local` and add a project API key:
 
 ```dotenv
 OPENAI_API_KEY=...
-# Optional override; the default is gpt-image-2.
-OPENAI_IMAGE_MODEL=gpt-image-2
+# Optional override; the default is gpt-image-2.5-sunburst.
+OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst
 ```
 
 Then start the normal editor:

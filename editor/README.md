@@ -96,7 +96,7 @@ npm run serve -w metaball-editor          # node dist-server/server/index.js
 | --------------------------- | --------------------------------------------------------------- |
 | `PORT`                      | Port to listen on (default `8080`)                               |
 | `OPENAI_API_KEY`            | Optional server-only key for AI material renders (see warning above) |
-| `OPENAI_IMAGE_MODEL`        | Optional model override (default `gpt-image-2`)                   |
+| `OPENAI_IMAGE_MODEL`        | Optional model override (default `gpt-image-2.5-sunburst`)                   |
 | `RENDER_MAX_PER_HOUR`       | Renders allowed per client IP per hour (default `10`, `0` = unlimited) |
 | `TRUST_PROXY`               | Set to `1` behind a trusted reverse proxy that rewrites `X-Forwarded-For`; otherwise the limiter keys on the socket address (the header is client-forgeable) |
 
