@@ -5,7 +5,7 @@ import {
   type AIRenderResult,
 } from './ai-render-contract.js';
 
-const DEFAULT_MODEL = 'gpt-image-2';
+const DEFAULT_MODEL = 'gpt-image-2.5-sunburst';
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const DATA_URL_PATTERN = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/;
 

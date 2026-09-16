@@ -72,7 +72,7 @@ test('AI render adapter sends shape first and optional material second', async (
     assert.deepEqual(init?.headers, { Authorization: 'Bearer test-key' });
     assert.ok(init?.body instanceof FormData);
     const form = init.body;
-    assert.equal(form.get('model'), 'gpt-image-2');
+    assert.equal(form.get('model'), 'gpt-image-2.5-sunburst');
     assert.equal(form.get('quality'), 'medium');
     assert.equal(form.get('size'), '1024x1024');
     assert.equal(form.get('background'), 'opaque');
@@ -95,7 +95,7 @@ test('AI render adapter sends shape first and optional material second', async (
   );
 
   assert.equal(result.image, 'data:image/png;base64,cmVuZGVy');
-  assert.equal(result.model, 'gpt-image-2');
+  assert.equal(result.model, 'gpt-image-2.5-sunburst');
   assert.equal(result.requestId, 'request-123');
 });
 
